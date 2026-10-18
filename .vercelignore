@@ -1,0 +1,13 @@
+# Deployment bundle: source only. Runtime state never ships.
+node_modules
+.next
+.data
+CA-automation-main
+.vercel
+docs
+*.log
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+.env
+.env.local
+deploy-credentials.local.md

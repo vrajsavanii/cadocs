@@ -1,0 +1,12 @@
+{
+  "name": "ca-automation-root",
+  "version": "1.0.0",
+  "description": "CA Firm Automation Suite",
+  "scripts": {
+    "dev": "npm run dev --prefix backend",
+    "start": "npm start --prefix backend",
+    "setup": "npm run setup --prefix backend",
+    "seed": "npm run seed --prefix backend",
+    "seed:full": "npm run seed:full --prefix backend"
+  }
+}

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CA Firm Automation Suite — Feature Guide & Practice Manual</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: #1F2923;
+    background: #FFFFFF;
+    line-height: 1.55;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .cover-header {
+    background: linear-gradient(135deg, #1E2822 0%, #2D3B32 60%, #3B5244 100%);
+    color: #FFFFFF;
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  }
+
+  .cover-tag {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.16);
+    color: #A3E635;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+
+  .cover-title {
+    font-size: 22pt;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .cover-subtitle {
+    font-size: 11pt;
+    color: #D1D5DB;
+    font-weight: 500;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.18);
+  }
+
+  .meta-item .label {
+    font-size: 8pt;
+    color: #9CA3AF;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .meta-item .val {
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: #FFFFFF;
+  }
+
+  h2 {
+    font-size: 14pt;
+    font-weight: 800;
+    color: #1A221D;
+    margin: 22px 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #E5E7EB;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: #2D3B32;
+    margin: 14px 0 6px 0;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin-bottom: 8px;
+    font-size: 10pt;
+    color: #374151;
+  }
+
+  ul, ol {
+    margin-left: 18px;
+    margin-bottom: 10px;
+    font-size: 10pt;
+    color: #374151;
+  }
+
+  li {
+    margin-bottom: 4px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+
+  th {
+    background: #F3F4F6;
+    color: #111827;
+    font-weight: 700;
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 2px solid #D1D5DB;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #E5E7EB;
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td {
+    background: #FAFAFA;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge-green  { background: #DEF7EC; color: #03543F; }
+  .badge-amber  { background: #FEF3C7; color: #92400E; }
+  .badge-red    { background: #FDE8E8; color: #9B1C1C; }
+
+  .callout {
+    background: #F8FAF9;
+    border-left: 4px solid #3B5244;
+    border-radius: 0 10px 10px 0;
+    padding: 12px 14px;
+    margin: 12px 0;
+    page-break-inside: avoid;
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 9.5pt;
+    color: #1E2822;
+    margin-bottom: 4px;
+  }
+  .callout p {
+    font-size: 9pt;
+    color: #4B5563;
+    margin: 0;
+  }
+
+  .module-card {
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    background: #FFFFFF;
+    page-break-inside: avoid;
+  }
+  .module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .module-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #111827;
+  }
+  .module-badge {
+    font-size: 7.5pt;
+    font-weight: 700;
+    padding: 2px 8px;
+    background: #E5E7EB;
+    border-radius: 999px;
+    color: #374151;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 10px 0;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .doc-footer {
+    margin-top: 30px;
+    padding-top: 12px;
+    border-top: 1px solid #E5E7EB;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #9CA3AF;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover-header">
+  <div class="cover-tag">Chartered Accountant Practice Operating System</div>
+  <div class="cover-title">CA Firm Automation Suite</div>
+  <div class="cover-subtitle">Complete Feature Specifications, Practice Operations Manual & Sales Guide</div>
+  <div class="meta-grid">
+    <div class="meta-item">
+      <div class="label">Target Audience</div>
+      <div class="val">Indian CA Firms (1-15 Partners)</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Database Engine</div>
+      <div class="val">Google Sheets API v4 (Live Sync)</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">AI Intelligence</div>
+      <div class="val">Groq LLaMA 3.1 8B Instant</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Automation Layer</div>
+      <div class="val">Daily Cron Schedulers & Webhooks</div>
+    </div>
+  </div>
+</div>
+
+<h2>1. Executive Summary: Why Indian CAs Need This</h2>
+<p>
+  Most Chartered Accountants in India waste <strong>over 60% of their billable hours</strong> on non-billable administrative friction:
+</p>
+<ul>
+  <li>Chasing reluctant clients over phone and WhatsApp for bank statements, GST invoices, and Form 16/26AS.</li>
+  <li>Tracking dozens of statutory deadlines across GST, TDS, Advance Tax, and ROC on scattered Excel files.</li>
+  <li>Answering repetitive, routine tax questions late at night when the partner wants to rest.</li>
+  <li>Losing cash flow because audit and filing fee reminders are awkward to send manually.</li>
+</ul>
+
+<div class="callout">
+  <div class="callout-title">The Transformation: Digital Practice Operating System</div>
+  <p>
+    This software centralizes all client records into a familiar Google Sheets cloud database, deploys an AI client support desk, automates morning WhatsApp reminders on statutory schedules, and tracks every rupee of billing recovery with zero manual effort.
+  </p>
+</div>
+
+<h2>2. Master Feature Breakdown (All 8 Modules)</h2>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 1: Practice Command Dashboard ("Sharma & Associates")</div>
+    <span class="module-badge">Command Center</span>
+  </div>
+  <p><strong>What It Is:</strong> The primary home screen giving the Senior Partner an instant bird’s-eye view of firm performance in under 10 seconds.</p>
+  <ul>
+    <li><strong>Row 1 KPI Cards:</strong> 4 real-time metric cards (Active Clients: 10, Pending Documents: 3, Compliances Due: 3, Overdue Fees: ₹42,500).</li>
+    <li><strong>Row 2 Visual Analytics:</strong> Smooth revenue trajectory spline wave + 38% Compliance Radial Completion Gauge + Partner profile badge.</li>
+    <li><strong>Row 3 Operational Feed:</strong> Smart Document Deck with 1-click Approve/Reject buttons, categorized Firm Data Vault, and live Activity Ticker.</li>
+  </ul>
+  <p><strong>Daily Usage:</strong> Partners review this during morning standup (9:30 AM) to allocate staff and spot overdue filing bottlenecks.</p>
+</div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 2: 24/7 AI Client Support Desk</div>
+    <span class="module-badge">Groq LLaMA 3.1 AI</span>
+  </div>
+  <p><strong>What It Is:</strong> An intelligent client advisory desk trained on Indian taxation (Income Tax, GST, MCA, and TDS) with automatic offline regulatory fallback.</p>
+  <ul>
+    <li><strong>Instant Knowledge:</strong> Answers Section 80C deductions, GST filing due dates, Advance Tax 234B/C interest, 44ADA presumptive limits, etc.</li>
+    <li><strong>Multi-Channel Ready:</strong> Plugs into chat UI or WhatsApp Cloud API webhook for direct smartphone auto-replies.</li>
+    <li><strong>Burnout Prevention:</strong> Clients receive instant, polite, technically accurate answers at 11 PM without waking up the CA.</li>
+  </ul>
+  <p><strong>Daily Usage:</strong> Clients get round-the-clock advisory; junior articles use it as an in-house tax reference library before drafting notes.</p>
+</div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 3: Smart Document Collection & Vault</div>
+    <span class="module-badge">Workflow Automation</span>
+  </div>
+  <p><strong>What It Is:</strong> Centralized hub to track client tax records from request to verification directly synced with Google Sheets.</p>
+  <ul>
+    <li><strong>4-Stage Lifecycle:</strong> Tracks status as <code>Pending</code> &rarr; <code>Received</code> &rarr; <code>Verified</code> &rarr; <code>Rejected</code>.</li>
+    <li><strong>1-Click WhatsApp Reminders:</strong> Generates tailored WhatsApp messages listing the exact missing documents for each client.</li>
+    <li><strong>Categorized Vault:</strong> Organizes files into GST Invoices, Bank Statements, Audit Proofs, and Direct Tax Challans.</li>
+  </ul>
+  <p><strong>Daily Usage:</strong> Articles filter for "Pending" on the 10th of the month and dispatch mass document reminders in one click.</p>
+</div>
+
+<div class="page-break"></div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 4: Statutory Compliance Calendar & Penalty Engine</div>
+    <span class="module-badge">Statutory Deadline Control</span>
+  </div>
+  <p><strong>What It Is:</strong> The regulatory clock of the firm. Tracks deadlines across GST, Income Tax, TDS, and ROC with live countdowns and penalty risk tags.</p>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Filing Task</th>
+        <th>Authority</th>
+        <th>Statutory Due Date</th>
+        <th>Default Penalty Risk</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>GSTR-1 Return</strong></td>
+        <td>GSTN</td>
+        <td>11th of every month</td>
+        <td><span class="badge badge-amber">E-Way Bill Block</span></td>
+      </tr>
+      <tr>
+        <td><strong>GSTR-3B Tax Summary</strong></td>
+        <td>GSTN</td>
+        <td>20th of every month</td>
+        <td><span class="badge badge-red">₹50/day + 18% Int</span></td>
+      </tr>
+      <tr>
+        <td><strong>TDS Challan 281</strong></td>
+        <td>Income Tax</td>
+        <td>7th of every month</td>
+        <td><span class="badge badge-red">1.5%/month Int</span></td>
+      </tr>
+      <tr>
+        <td><strong>Advance Tax (Q4)</strong></td>
+        <td>Income Tax</td>
+        <td>15th March</td>
+        <td><span class="badge badge-amber">Sec 234B/C Int</span></td>
+      </tr>
+      <tr>
+        <td><strong>ITR Non-Audit</strong></td>
+        <td>Income Tax</td>
+        <td>31st July</td>
+        <td><span class="badge badge-red">₹5,000 Sec 234F</span></td>
+      </tr>
+      <tr>
+        <td><strong>ROC AOC-4 / MGT-7</strong></td>
+        <td>MCA</td>
+        <td>30th Oct / 29th Nov</td>
+        <td><span class="badge badge-red">₹100/day per form</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Daily Usage:</strong> At 9:00 AM daily, the background scheduler scans the calendar and alerts clients whose filings are due within 7 days.</p>
+</div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 5: Client Acquisition & Lead Pipeline</div>
+    <span class="module-badge">Inbound CRM</span>
+  </div>
+  <p><strong>What It Is:</strong> Captures and qualifies incoming business inquiries from websites, referrals, and WhatsApp campaigns.</p>
+  <ul>
+    <li><strong>Pipeline Stages:</strong> <code>New Inbound</code> &rarr; <code>Qualified</code> &rarr; <code>Proposal Sent</code> &rarr; <code>Won & Converted</code>.</li>
+    <li><strong>1-Click Client Conversion:</strong> Clicking "Convert" automatically inserts the prospect into the master Google Sheet as a live client.</li>
+    <li><strong>10:00 AM Follow-up Scheduler:</strong> Automatically follows up on unaccepted proposals after 48 hours.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 6: Invoices & Automated Fee Recovery Engine</div>
+    <span class="module-badge">Cash Flow Acceleration</span>
+  </div>
+  <p><strong>What It Is:</strong> Solves the chronic Indian CA problem of uncollected audit and compliance fees.</p>
+  <ul>
+    <li><strong>Aging Analysis:</strong> Flags invoices that are 15, 30, or 60+ days overdue.</li>
+    <li><strong>10:30 AM WhatsApp Payment Scheduler:</strong> Sends polite, professional WhatsApp reminders with invoice details and UPI/bank payment instructions.</li>
+    <li><strong>1-Click Settlement:</strong> Marks bill as paid and updates receivables in Google Sheets instantly.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 7: Master Client Directory & Onboarding</div>
+    <span class="module-badge">Database Core</span>
+  </div>
+  <p><strong>What It Is:</strong> Full directory of corporate clients (Pvt Ltd, LLPs, Partnerships, Proprietorships) with PAN, GSTIN, WhatsApp, and assigned articles.</p>
+  <ul>
+    <li><strong>Instant Onboarding Modal:</strong> Form directly creates new rows in Google Sheets <code>Clients</code> tab without manual spreadsheet editing.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-header">
+    <div class="module-title">Module 8: Practice System Settings & Scheduler Hub</div>
+    <span class="module-badge">Administration</span>
+  </div>
+  <p><strong>What It Is:</strong> Control tower showing live connectivity health for WhatsApp API, Google Sheets, Groq AI, and background schedulers.</p>
+  <ul>
+    <li><strong>5 Manual Triggers:</strong> Run any morning cron workflow on demand with a single click.</li>
+  </ul>
+</div>
+
+<div class="page-break"></div>
+
+<h2>3. Typical Day at a CA Firm Using This Software</h2>
+
+<div class="grid-2">
+  <div class="callout">
+    <div class="callout-title">🌅 Morning Routine (9:00 AM – 10:30 AM)</div>
+    <p>
+      • <strong>9:00 AM:</strong> Schedulers scan compliance dates and queue WhatsApp notices.<br>
+      • <strong>9:30 AM:</strong> Document reminder scheduler runs.<br>
+      • <strong>10:00 AM:</strong> Lead proposal follow-ups dispatched.<br>
+      • <strong>10:30 AM:</strong> Fee reminder scheduler alerts overdue accounts.<br>
+      • <strong>CA Partner:</strong> Reviews the 4 KPI cards and assigns urgent items.
+    </p>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">🌇 Afternoon Execution (11:00 AM – 5:00 PM)</div>
+    <p>
+      • <strong>Articles:</strong> Verify submitted documents and prepare filings on GST/IT portal.<br>
+      • <strong>Filing Updates:</strong> Articles mark filings as "Filed" with challan numbers.<br>
+      • <strong>AI Desk:</strong> Handles 20+ routine client questions automatically.<br>
+      • <strong>Accountant:</strong> Verifies incoming payments and marks invoices settled.
+    </p>
+  </div>
+</div>
+
+<h2>4. Commercial Playbook: How to Pitch & Sell to CAs</h2>
+
+<div class="callout">
+  <div class="callout-title">The Pitch Script for Chartered Accountants</div>
+  <p>
+    <em>"Sir, your firm is losing 50+ hours every month just chasing clients for bank statements, GST bills, and unpaid fees. This platform acts as your digital office manager: it links directly to your Google Sheet, tracks every GST, ITR, and ROC deadline, sends automated WhatsApp reminders to clients on time, and gives your clients a 24/7 AI tax desk. You save 50 hours a month, eliminate penalties, and collect your fees twice as fast."</em>
+  </p>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Value Metric</th>
+      <th>Traditional CA Office</th>
+      <th>With CA Automation Suite</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Time Chasing Documents</strong></td>
+      <td>15–20 hours / week per article</td>
+      <td><strong>15 minutes / week</strong> (Automated)</td>
+    </tr>
+    <tr>
+      <td><strong>Default Filing Penalties</strong></td>
+      <td>Frequent client late fee disputes</td>
+      <td><strong>Zero defaults</strong> (7-day alert buffer)</td>
+    </tr>
+    <tr>
+      <td><strong>Fee Collection Speed</strong></td>
+      <td>45–90 days overdue average</td>
+      <td><strong>14–21 days</strong> (Automated WhatsApp nudges)</td>
+    </tr>
+    <tr>
+      <td><strong>Client Inquiries at Night</strong></td>
+      <td>Partner calls or unread WhatsApps</td>
+      <td><strong>Instant AI answers</strong> in 2 seconds</td>
+    </tr>
+    <tr>
+      <td><strong>Firm Capacity Limit</strong></td>
+      <td>~100 clients per 3 partners</td>
+      <td><strong>300+ clients</strong> comfortably managed</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="doc-footer">
+  <div>CA Firm Automation Suite • Official Practice Operations Manual</div>
+  <div>Sharma & Associates Enterprise Edition • Generated 2026</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,4794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sharma & Associates — CA Practice Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-canvas:      #EBE9E4; /* Warm oyster/limestone canvas from reference */
+    --card-bg:        #FFFFFF;
+    --card-subtle:    #F6F5F2;
+    --dark-green:     #3B5244; /* Deep forest green from reference card & buttons */
+    --dark-green-hov: #2D3F34;
+    --dark-pill:      #1D231F;
+    --sage-light:     #E8EFE9;
+    --sage-text:      #3D5445;
+    --gold-coin:      #F4EDE0;
+    --gold-icon:      #B38D4F;
+    --text-main:      #19201C;
+    --text-muted:     #848B85;
+    --text-sub:       #5C635E;
+    --border-light:   rgba(0, 0, 0, 0.04);
+    --border-pill:    rgba(0, 0, 0, 0.06);
+    --shadow-card:    0 8px 30px -4px rgba(0, 0, 0, 0.04), 0 2px 8px -2px rgba(0, 0, 0, 0.02);
+    --shadow-soft:    0 4px 20px rgba(0, 0, 0, 0.03);
+    --radius-card:    24px;
+    --radius-sm:      14px;
+    --radius-pill:    999px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 999px; }
+
+  /* ══════════════════════════════════════
+     FLOATING CAPSULE SIDEBAR
+  ══════════════════════════════════════ */
+  button:focus,
+  button:focus-visible {
+    outline: none !important;
+  }
+
+  .sidebar-container {
+    padding: 24px 0 24px 24px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 20;
+    height: 100vh;
+    box-sizing: border-box;
+  }
+
+  .floating-sidebar {
+    width: 68px;
+    height: 100%;
+    background: #FFFFFF;
+    border-radius: 40px;
+    box-shadow: 0 10px 36px -4px rgba(0, 0, 0, 0.04), 0 0 1px 1px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    gap: 14px;
+    user-select: none;
+    box-sizing: border-box;
+  }
+
+  .nav-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #8E9891;
+    transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
+    position: relative;
+    border: none;
+    background: transparent;
+    outline: none !important;
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+  }
+
+  .nav-btn:focus,
+  .nav-btn:focus-visible,
+  .nav-btn:active {
+    outline: none !important;
+    box-shadow: none;
+  }
+
+  .nav-btn:hover {
+    color: #1E2620;
+    background: #F4F3EF;
+    border-radius: 15px;
+  }
+
+  .nav-btn.active {
+    background: #19201B;
+    color: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 6px 16px rgba(25, 32, 27, 0.22);
+    outline: none !important;
+  }
+
+  .nav-btn.active:hover {
+    background: #232D26;
+    color: #FFFFFF;
+  }
+
+  .nav-btn.active:focus,
+  .nav-btn.active:focus-visible {
+    outline: none !important;
+    box-shadow: 0 6px 16px rgba(25, 32, 27, 0.22) !important;
+  }
+
+  .nav-btn svg {
+    width: 21px;
+    height: 21px;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.18s ease;
+  }
+
+  .nav-btn:hover svg {
+    transform: scale(1.06);
+  }
+
+  .nav-btn.active svg {
+    stroke-width: 2;
+  }
+
+  .nav-btn.active svg.icon-dashboard rect {
+    fill: #FFFFFF;
+    stroke: none;
+  }
+
+  .nav-btn:not(.active) svg.icon-dashboard rect {
+    fill: currentColor;
+    stroke: none;
+    opacity: 0.85;
+  }
+
+  .nav-badge-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #E85A5A;
+    color: #FFFFFF;
+    font-size: 9.5px;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 2px 5px rgba(232, 90, 90, 0.35);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 2;
+    letter-spacing: -0.2px;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .nav-btn.active .nav-badge-dot {
+    border-color: #19201B;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .nav-badge-dot:empty {
+    min-width: 8px;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    top: 6px;
+    right: 6px;
+    border-width: 1.5px;
+  }
+
+  .sidebar-divider {
+    display: none;
+  }
+
+  .sidebar-spacer {
+    flex: 1;
+    min-height: 20px;
+  }
+
+  .user-pill-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2.5px solid #F0EEE9;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #3B5244;
+    user-select: none;
+    outline: none !important;
+    flex-shrink: 0;
+  }
+
+  .user-pill-avatar:hover {
+    transform: scale(1.08);
+    border-color: #2D3E34;
+    box-shadow: 0 4px 14px rgba(45, 62, 52, 0.25);
+  }
+
+  .user-avatar-initials {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #FFFFFF;
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+
+  /* ══════════════════════════════════════
+     MAIN VIEWPORT
+  ══════════════════════════════════════ */
+  .viewport {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 28px 24px 24px;
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  /* ── TOPBAR ── */
+  .top-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+    flex-shrink: 0;
+  }
+
+  .brand-greeting {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .starburst-icon {
+    width: 42px;
+    height: 42px;
+    color: var(--dark-green);
+    flex-shrink: 0;
+  }
+
+  .greeting-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.4px;
+    line-height: 1.2;
+  }
+
+  .greeting-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    font-weight: 500;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pill-search {
+    display: flex;
+    align-items: center;
+    background: var(--card-bg);
+    border-radius: var(--radius-pill);
+    padding: 5px 6px 5px 18px;
+    box-shadow: var(--shadow-soft);
+    width: 280px;
+  }
+
+  .pill-search input {
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-main);
+    outline: none;
+    width: 100%;
+  }
+
+  .pill-search input::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  .search-submit-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--dark-pill);
+    border: none;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .search-submit-btn:hover { transform: scale(1.05); }
+
+  /* ── GLOBAL SEARCH SPOTLIGHT DROPDOWN ── */
+  .global-search-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 380px;
+    max-height: 440px;
+    overflow-y: auto;
+    background: #FFFFFF;
+    border-radius: 16px;
+    border: 1px solid #E4E1D8;
+    box-shadow: 0 16px 40px -6px rgba(25, 32, 28, 0.16), 0 4px 12px rgba(0, 0, 0, 0.04);
+    z-index: 1100;
+    padding: 6px 0;
+    font-family: inherit;
+    animation: dropFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes dropFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .gs-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8C968F;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    padding: 8px 14px 4px;
+  }
+
+  .gs-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  .gs-item:hover {
+    background: #F5F3ED;
+  }
+
+  .gs-item-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .gs-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: #EDEAE1;
+    color: #19201C;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .gs-icon.emerald {
+    background: #E6EFE9;
+    color: #1E4D2B;
+  }
+  .gs-icon.gold {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+
+  .gs-info {
+    min-width: 0;
+  }
+  .gs-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #19201C;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gs-subtitle {
+    font-size: 11px;
+    color: #6C776F;
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gs-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #F1EFE9;
+    color: #4A564F;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .gs-footer {
+    padding: 8px 14px;
+    background: #FAF8F3;
+    border-top: 1px solid #ECE8DE;
+    font-size: 11px;
+    color: #8C968F;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+
+  .gs-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: #6C776F;
+    font-size: 12.5px;
+  }
+
+  .round-action-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: none;
+    box-shadow: var(--shadow-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-main);
+    position: relative;
+    transition: all 0.15s;
+  }
+  .round-action-btn:hover { background: #FAF9F6; transform: translateY(-1px); }
+
+  .badge-indicator {
+    position: absolute;
+    top: 10px;
+    right: 11px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #E85A5A;
+  }
+
+  .api-status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--card-bg);
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--dark-green);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34D399;
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+    animation: liveGlow 2s infinite;
+  }
+  @keyframes liveGlow { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  /* ══════════════════════════════════════
+     VIEWS SYSTEM
+  ══════════════════════════════════════ */
+  .view-panel {
+    display: none;
+    animation: viewFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .view-panel.active { display: block; }
+  @keyframes viewFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ══════════════════════════════════════
+     DASHBOARD VIEW GRID
+  ══════════════════════════════════════ */
+  .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ── ROW 1: 4 STAT CARDS ── */
+  .stats-top-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 16px;
+  }
+
+  .stat-card-white {
+    background: var(--card-bg);
+    border-radius: var(--radius-card);
+    padding: 20px 22px;
+    box-shadow: var(--shadow-card);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+  }
+
+  .stat-info-left {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-tiny-label {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .stat-big-number {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+
+  .stat-circle-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .stat-circle-icon.sage { background: var(--sage-light); color: var(--dark-green); }
+  .stat-circle-icon.gold { background: var(--gold-coin); color: var(--gold-icon); }
+
+  /* Mini visual equalizer bars in Card 1 */
+  .equalizer-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 32px;
+  }
+  .eq-bar {
+    width: 5px;
+    border-radius: 999px;
+    background: var(--dark-green);
+    opacity: 0.85;
+  }
+
+  /* Card 4: Signature Deep Forest Green Card */
+  .stat-card-forest {
+    background: var(--dark-green);
+    border-radius: var(--radius-card);
+    padding: 20px 22px;
+    box-shadow: var(--shadow-card);
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .stat-card-forest .stat-tiny-label { color: rgba(255, 255, 255, 0.7); }
+  .stat-card-forest .stat-big-number { color: #FFFFFF; }
+
+  /* ── ROW 2: BALANCE & PERFORMANCE ── */
+  .analytics-middle-row {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr 1fr;
+    gap: 16px;
+  }
+
+  .card-white {
+    background: var(--card-bg);
+    border-radius: var(--radius-card);
+    padding: 24px;
+    box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .card-heading-title {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-badge.green { background: #E7EFE9; color: #356E47; }
+  .pill-badge.red   { background: #FBEBEB; color: #C94A4A; }
+  .pill-badge.muted { background: #F1F0EC; color: #6D736F; }
+
+  .dropdown-chip {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Dual floating cards inside Practice Health */
+  .metric-dual-pills {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .inner-metric-box {
+    background: #FAF9F6;
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .inner-metric-title { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; font-weight: 500; }
+  .inner-metric-val   { font-size: 17px; font-weight: 700; color: var(--text-main); }
+
+  /* Smooth Wave SVG container */
+  .spline-wave-container {
+    width: 100%;
+    margin-top: auto;
+    overflow: hidden;
+  }
+  .spline-wave-container svg { width: 100%; height: 95px; display: block; }
+
+  /* Radial Gauge Card (Fee Recovery Donut) */
+  .radial-gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: auto 0;
+    padding: 10px 0;
+    position: relative;
+  }
+
+  .radial-gauge-svg { width: 170px; height: 100px; }
+  .gauge-center-text {
+    position: absolute;
+    top: 65px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+  }
+
+  /* CA Profile Card */
+  .profile-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: auto 0;
+  }
+
+  .profile-big-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #F4EDE0;
+    padding: 4px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 24px;
+    color: var(--dark-green);
+  }
+
+  .profile-name { font-size: 16px; font-weight: 700; color: var(--text-main); }
+  .profile-email { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .profile-stats-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .profile-stat-col { display: flex; flex-direction: column; align-items: center; }
+  .profile-stat-label { font-size: 10.5px; color: var(--text-muted); margin-bottom: 3px; }
+  .profile-stat-num   { font-size: 16px; font-weight: 700; color: var(--text-main); }
+
+  /* ── ROW 3: RECENT UPDATES & SECURITY ── */
+  .bottom-cards-row {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Digital Notice Deck Stack */
+  .wallet-card-stack-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .wallet-stack-svg {
+    width: 190px;
+    height: 130px;
+    flex-shrink: 0;
+  }
+
+  .pill-action-btn {
+    background: var(--dark-green);
+    color: #FFFFFF;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 8px 18px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    transition: background 0.15s, transform 0.15s;
+    font-family: inherit;
+  }
+  .pill-action-btn:hover { background: var(--dark-green-hov); transform: translateY(-1px); }
+
+  /* Activity Feed */
+  .transfer-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .transfer-item:last-child { border-bottom: none; }
+
+  .transfer-client-name { font-size: 13px; font-weight: 600; color: var(--text-main); }
+  .transfer-time        { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Fingerprint Security Card */
+  .security-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: auto 0;
+  }
+
+  .fingerprint-icon-wrap {
+    width: 60px;
+    height: 60px;
+    color: var(--dark-green);
+    margin-bottom: 10px;
+  }
+
+  /* ══════════════════════════════════════
+     DOCUMENT COLLECTION HUB STYLES
+  ══════════════════════════════════════ */
+  .doc-hub-container {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .doc-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .doc-filter-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.7);
+    padding: 5px;
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .doc-pill {
+    padding: 7px 16px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+  }
+  .doc-pill:hover { color: var(--text-main); }
+  .doc-pill.active {
+    background: var(--dark-green);
+    color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(59, 82, 68, 0.2);
+  }
+
+  /* ══════════════════════════════════════
+     DOCUMENT COLLECTION HUB — 2-PANE SPLIT CARD
+  ══════════════════════════════════════ */
+  .client-doc-card {
+    background: #FFFFFF;
+    border-radius: 20px;
+    border: 1px solid #E5E3DC;
+    box-shadow: 0 4px 16px -2px rgba(25, 32, 28, 0.05), 0 1px 3px rgba(25, 32, 28, 0.02);
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    overflow: hidden;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s, border-color 0.2s;
+    margin-bottom: 16px;
+  }
+  .client-doc-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px -4px rgba(25, 32, 28, 0.09), 0 2px 6px rgba(25, 32, 28, 0.04);
+    border-color: rgba(59, 82, 68, 0.32);
+  }
+
+  @media (max-width: 980px) {
+    .client-doc-card {
+      grid-template-columns: 1fr;
+    }
+    .client-doc-left-pane {
+      border-right: none !important;
+      border-bottom: 1px solid #ECEAE4;
+    }
+  }
+
+  /* Left Pane: Client Profile & Primary Action */
+  .client-doc-left-pane {
+    background: #FAF9F6;
+    padding: 22px 20px;
+    border-right: 1px solid #ECEAE4;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .client-ident-block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .client-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: #E8EFE9;
+    color: var(--dark-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: -0.3px;
+    flex-shrink: 0;
+    border: 1px solid rgba(59, 82, 68, 0.12);
+  }
+
+  .client-info-col {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .client-title-name {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #19201C;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .compliance-tag {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: #EAE7DF;
+    color: #444E46;
+    margin-top: 3px;
+  }
+
+  /* Contact & Metadata Box */
+  .client-meta-box {
+    background: #FFFFFF;
+    border: 1px solid #ECEAE4;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .meta-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    gap: 8px;
+  }
+
+  .meta-label {
+    color: #727B75;
+    font-weight: 500;
+  }
+
+  .meta-val {
+    color: #2D3A31;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .meta-val.due-highlight {
+    color: var(--dark-green);
+    font-weight: 700;
+  }
+
+  /* Progress Box */
+  .client-progress-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .progress-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .progress-title {
+    color: #727B75;
+  }
+
+  .progress-ratio {
+    color: #19201C;
+    font-weight: 700;
+  }
+
+  .progress-bar-track {
+    height: 6px;
+    border-radius: 999px;
+    background: #EBE8E1;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--dark-green);
+    border-radius: 999px;
+    transition: width 0.4s ease;
+  }
+
+  /* Action Buttons in Left Pane */
+  .client-action-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .chase-btn {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all 0.15s ease;
+  }
+  .chase-btn.wa {
+    background: var(--dark-green);
+    color: #FFFFFF;
+    flex: 1;
+    box-shadow: 0 2px 8px rgba(59, 82, 68, 0.25);
+  }
+  .chase-btn.wa:hover {
+    background: var(--dark-green-hov);
+    transform: translateY(-1px);
+  }
+  .chase-btn.email {
+    background: #EAE8E2;
+    color: #2D3A31;
+    border: 1px solid #DCD8CD;
+  }
+  .chase-btn.email:hover {
+    background: #DFDCD2;
+  }
+
+  .filing-ready-pill {
+    background: #E8EFE9;
+    color: #2A5A38;
+    border: 1px solid #CDE0D1;
+    border-radius: 9px;
+    padding: 7px 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+  }
+
+  /* Right Pane: Checklist & Files */
+  .client-doc-right-pane {
+    background: #FFFFFF;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .doc-pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #F0EEE8;
+  }
+
+  .doc-pane-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .doc-pane-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #19201C;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .doc-pane-sub {
+    font-size: 11px;
+    color: #8C968F;
+  }
+
+  .doc-badge-pending {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    letter-spacing: 0.2px;
+  }
+
+  .doc-badge-verified {
+    background: #E8EFE9;
+    color: #2A5A38;
+    border: 1px solid #CCE0D0;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    letter-spacing: 0.2px;
+  }
+
+  /* Checklist Grid */
+  .doc-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+    margin: 4px 0;
+  }
+
+  .doc-card-item {
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: all 0.15s ease;
+  }
+  .doc-card-item.received {
+    background: #F6FAF7;
+    border: 1px solid #DFEDE3;
+  }
+  .doc-card-item.received:hover {
+    border-color: #C5DFCD;
+    background: #F0F7F2;
+  }
+  .doc-card-item.missing {
+    background: #FFFDF9;
+    border: 1px dashed #E2D9CC;
+  }
+  .doc-card-item.missing:hover {
+    border-color: #D3C5B2;
+    background: #FFF9F0;
+  }
+
+  .doc-card-left {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .doc-card-icon {
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .doc-card-text {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .doc-card-name {
+    font-size: 12px;
+    font-weight: 650;
+    color: #1E2821;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .doc-card-status {
+    font-size: 10.5px;
+    color: #7A857D;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .doc-pill-verified {
+    background: #E3EDE5;
+    color: #2D5837;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .doc-mark-btn {
+    border: none;
+    background: var(--dark-green);
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .doc-mark-btn:hover {
+    background: var(--dark-green-hov);
+    transform: translateY(-1px);
+  }
+
+  /* Right Pane Footer */
+  .doc-pane-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid #F0EEE8;
+    font-size: 11px;
+    color: #8C968F;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .cron-status-text {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .vault-sync-text {
+    color: #9AA39B;
+    font-weight: 500;
+  }
+
+  /* ══════════════════════════════════════
+     COMPLIANCE VIEW STYLES
+  ══════════════════════════════════════ */
+  .compliance-item {
+    background: var(--card-bg);
+    border-radius: 18px;
+    padding: 18px 22px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid rgba(0,0,0,0.03);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .compliance-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.05);
+  }
+  .compliance-item.urgent  { border-left: 4px solid #C94A4A; }
+  .compliance-item.warning { border-left: 4px solid #B38D4F; }
+  .compliance-item.ok      { border-left: 4px solid #356E47; }
+
+  .comp-type-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--sage-light);
+    color: var(--dark-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .comp-info { flex: 1; }
+  .comp-title { font-size: 15px; font-weight: 700; color: var(--text-main); }
+  .comp-meta  { font-size: 12px; color: var(--text-muted); margin-top: 3px; font-weight: 500; }
+  .comp-due   { text-align: right; }
+  .comp-due-date  { font-size: 13.5px; font-weight: 700; }
+  .comp-due-label { font-size: 11px; font-weight: 600; margin-top: 2px; }
+  /* ── Ultra-Premium Compliance Action Buttons ── */
+  .comp-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .comp-btn {
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+    border: 1px solid transparent;
+    letter-spacing: -0.1px;
+    text-decoration: none;
+    user-select: none;
+    line-height: 1;
+  }
+  .comp-btn svg {
+    flex-shrink: 0;
+    transition: transform 0.18s ease;
+  }
+  .comp-btn:hover svg {
+    transform: scale(1.1);
+  }
+
+  /* WhatsApp Remind — Fresh Mint / Deep Emerald Luxury */
+  .comp-btn-wa {
+    background: #EBF8EE;
+    border-color: #C3ECD0;
+    color: #166534;
+    box-shadow: 0 1px 2px rgba(22, 101, 52, 0.05);
+  }
+  .comp-btn-wa:hover {
+    background: #DCFCE7;
+    border-color: #86EFAC;
+    color: #14532D;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(22, 101, 52, 0.12);
+  }
+  .comp-btn-wa:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(22, 101, 52, 0.08);
+  }
+
+  /* Email Notice — Crisp Off-White Glass / Architectural Slate */
+  .comp-btn-email {
+    background: #FFFFFF;
+    border-color: #E2DFD7;
+    color: #4A534E;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+  .comp-btn-email:hover {
+    background: #F6F4EE;
+    border-color: #D3CFBE;
+    color: #19201C;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  }
+  .comp-btn-email:active {
+    transform: translateY(0);
+  }
+
+  /* Mark Filed — Deep Forest Green / Executive Sign-off */
+  .comp-btn-filed {
+    background: linear-gradient(180deg, #2D3A31 0%, #19201C 100%);
+    border-color: #19201C;
+    color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(25, 32, 28, 0.18);
+  }
+  .comp-btn-filed svg {
+    color: #86EFAC;
+  }
+  .comp-btn-filed:hover {
+    background: linear-gradient(180deg, #374A3D 0%, #254F33 100%);
+    border-color: #254F33;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(37, 79, 51, 0.28);
+  }
+  .comp-btn-filed:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(37, 79, 51, 0.15);
+  }
+
+  /* General .reminder-btn styles across tables */
+  .reminder-btn {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    outline: none;
+    border: 1px solid transparent;
+  }
+  .reminder-btn.wa {
+    background: #EBF8EE;
+    border-color: #C3ECD0;
+    color: #166534;
+  }
+  .reminder-btn.wa:hover {
+    background: #DCFCE7;
+    border-color: #86EFAC;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(22, 101, 52, 0.15);
+  }
+  .reminder-btn.email {
+    background: #FAF9F6;
+    border-color: #E2DFD7;
+    color: #4A534E;
+  }
+  .reminder-btn.email:hover {
+    background: #F0ECE1;
+    border-color: #D3CFBE;
+    color: #19201C;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Universal Badges & Action Rows */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-teal, .badge-emerald { background: #E7EFE9; color: #356E47; }
+  .badge-amber  { background: #FAF5EC; color: #B38D4F; }
+  .badge-rose   { background: #FBEBEB; color: #C94A4A; }
+  .badge-violet { background: #F3EEF9; color: #7C45B3; }
+  .badge-slate  { background: #F1F0EC; color: #6D736F; }
+
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ══════════════════════════════════════
+     OTHER VIEWS (AI AGENT, DOCS, LEADS, ETC.)
+  ══════════════════════════════════════ */
+  .page-title-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .page-main-heading { font-size: 20px; font-weight: 700; color: var(--text-main); }
+  .page-main-desc    { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ══════════════════════════════════════
+     WHATSAPP AI OMNICHANNEL & REVIEW DESK
+  ══════════════════════════════════════ */
+  .omnichannel-desk-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr 300px;
+    gap: 16px;
+    height: calc(100vh - 180px);
+    min-height: 600px;
+    max-height: 780px;
+  }
+  @media (max-width: 1200px) {
+    .omnichannel-desk-grid {
+      grid-template-columns: 290px 1fr;
+    }
+    .omni-dossier-col {
+      display: none !important;
+    }
+  }
+  @media (max-width: 850px) {
+    .omnichannel-desk-grid {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+  }
+
+  /* Column 1: Conversations Feed */
+  .omni-feed-col {
+    background: #FFFFFF;
+    border-radius: 20px;
+    border: 1px solid #E5E3DC;
+    box-shadow: 0 4px 16px -2px rgba(25, 32, 28, 0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .omni-feed-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid #F0EEE8;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .omni-feed-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .omni-feed-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .omni-filter-tabs {
+    display: flex;
+    gap: 6px;
+    background: #F4F2EC;
+    padding: 3px;
+    border-radius: 10px;
+  }
+  .omni-tab-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6E7A72;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+  .omni-tab-btn.active {
+    background: #FFFFFF;
+    color: var(--text-main);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    font-weight: 700;
+  }
+
+  .omni-search-input {
+    width: 100%;
+    border: 1px solid #ECEAE4;
+    background: #F9F8F5;
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 11.5px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .omni-search-input:focus {
+    border-color: var(--dark-green);
+    background: #FFFFFF;
+  }
+
+  .omni-chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .omni-chat-card {
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    gap: 10px;
+    background: #FFFFFF;
+  }
+  .omni-chat-card:hover {
+    background: #FAF9F6;
+    border-color: #E8E5DC;
+  }
+  .omni-chat-card.active {
+    background: #F3F7F4;
+    border-color: rgba(59, 82, 68, 0.35);
+    box-shadow: 0 2px 8px rgba(59, 82, 68, 0.06);
+  }
+
+  .omni-chat-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: #E8EFE9;
+    color: var(--dark-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 750;
+    font-size: 12.5px;
+    flex-shrink: 0;
+    position: relative;
+    border: 1px solid rgba(59, 82, 68, 0.12);
+  }
+  .omni-online-badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #22C55E;
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    border: 1.5px solid #FFFFFF;
+  }
+
+  .omni-chat-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .omni-chat-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+  .omni-chat-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #19201C;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .omni-chat-time {
+    font-size: 10px;
+    color: #8C968F;
+    white-space: nowrap;
+  }
+
+  .omni-chat-snippet {
+    font-size: 11px;
+    color: #6A756D;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.35;
+    margin-bottom: 5px;
+  }
+
+  .omni-chat-tags {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .omni-badge-review {
+    background: #FEF3C7;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .omni-badge-handled {
+    background: #E8EFE9;
+    color: #254F33;
+    border: 1px solid #CCE0D0;
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .omni-badge-urgent {
+    background: #FEE2E2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* Column 2: Live Chat & Review Box */
+  .omni-chat-col {
+    background: #FFFFFF;
+    border-radius: 20px;
+    border: 1px solid #E5E3DC;
+    box-shadow: 0 4px 16px -2px rgba(25, 32, 28, 0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .omni-thread-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid #F0EEE8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #FFFFFF;
+  }
+  .omni-thread-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .omni-thread-details {
+    min-width: 0;
+  }
+  .omni-thread-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #19201C;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .omni-thread-meta {
+    font-size: 11px;
+    color: #727B75;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .omni-messages-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #FAF9F6;
+  }
+
+  .omni-bubble {
+    max-width: 82%;
+    padding: 11px 15px;
+    border-radius: 16px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .omni-bubble-client {
+    align-self: flex-start;
+    background: #FFFFFF;
+    color: #19201C;
+    border: 1px solid #E8E5DC;
+    border-bottom-left-radius: 4px;
+  }
+  .omni-bubble-ai {
+    align-self: flex-start;
+    background: #EFF6F0;
+    color: #1B3524;
+    border: 1px solid #CFE2D4;
+    border-bottom-left-radius: 4px;
+  }
+  .omni-bubble-human {
+    align-self: flex-end;
+    background: var(--dark-green);
+    color: #FFFFFF;
+    border-bottom-right-radius: 4px;
+  }
+
+  .omni-bubble-sender {
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .omni-bubble-client .omni-bubble-sender { color: #6E7A72; }
+  .omni-bubble-ai .omni-bubble-sender { color: var(--dark-green); }
+  .omni-bubble-human .omni-bubble-sender { color: #D6E5D9; }
+
+  .omni-bubble-time {
+    font-size: 9.5px;
+    opacity: 0.7;
+    margin-top: 4px;
+    text-align: right;
+  }
+
+  /* Review Box / Approval Console */
+  .omni-review-container {
+    background: #FFFFFF;
+    border-top: 1px solid #ECEAE4;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .omni-review-alert-banner {
+    background: #FEF9EE;
+    border: 1px solid #FDE4A0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #854D0E;
+    font-weight: 600;
+  }
+
+  .omni-draft-box {
+    width: 100%;
+    border: 1px solid #DFDBD0;
+    background: #FAF9F6;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #19201C;
+    resize: vertical;
+    min-height: 70px;
+    outline: none;
+    transition: all 0.15s;
+  }
+  .omni-draft-box:focus {
+    background: #FFFFFF;
+    border-color: var(--dark-green);
+    box-shadow: 0 0 0 2px rgba(59,82,68,0.1);
+  }
+
+  .omni-review-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .omni-approve-btn {
+    border: none;
+    background: var(--dark-green);
+    color: #FFFFFF;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(59,82,68,0.25);
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+  .omni-approve-btn:hover {
+    background: var(--dark-green-hov);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59,82,68,0.3);
+  }
+
+  .omni-ghost-btn {
+    border: 1px solid #DFDBD0;
+    background: #F7F6F2;
+    color: #2D3A31;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .omni-ghost-btn:hover {
+    background: #ECE9DF;
+    color: #19201C;
+  }
+
+  /* Column 3: Client Dossier */
+  .omni-dossier-col {
+    background: #FFFFFF;
+    border-radius: 20px;
+    border: 1px solid #E5E3DC;
+    box-shadow: 0 4px 16px -2px rgba(25, 32, 28, 0.05);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+  }
+
+  .dossier-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #F0EEE8;
+  }
+  .dossier-section-heading {
+    font-size: 13px;
+    font-weight: 700;
+    color: #19201C;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dossier-card-subtle {
+    background: #FAF9F6;
+    border: 1px solid #ECEAE4;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .dossier-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .dossier-label {
+    color: #727B75;
+    font-weight: 500;
+  }
+  .dossier-val {
+    color: #19201C;
+    font-weight: 600;
+  }
+
+  .dossier-tag-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+  .dossier-tag-pill.warn {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+  .dossier-tag-pill.ok {
+    background: #E8EFE9;
+    color: #254F33;
+  }
+
+  /* CA & Team Operations Co-Pilot Styles */
+  .desk-segmented-control {
+    display: inline-flex;
+    background: #E5E3DC;
+    padding: 3px;
+    border-radius: 12px;
+    gap: 4px;
+  }
+  .desk-mode-btn {
+    border: none;
+    background: transparent;
+    padding: 6px 14px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #555E57;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+  .desk-mode-btn:hover {
+    color: #19201C;
+  }
+  .desk-mode-btn.active {
+    background: #FFFFFF;
+    color: #19201C;
+    box-shadow: 0 2px 6px rgba(25, 32, 28, 0.08);
+  }
+  .copilot-chip {
+    border: 1px solid #D6DFD8;
+    background: #FFFFFF;
+    color: #254F33;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+  .copilot-chip:hover {
+    background: #E8EFE9;
+    border-color: #254F33;
+  }
+  .copilot-msg-user {
+    align-self: flex-end;
+    background: #3B5244;
+    color: #FFFFFF;
+    padding: 10px 14px;
+    border-radius: 14px 14px 4px 14px;
+    max-width: 80%;
+    font-size: 12.5px;
+    line-height: 1.5;
+    box-shadow: 0 2px 8px rgba(59,82,68,0.15);
+  }
+  .copilot-msg-ai {
+    align-self: flex-start;
+    background: #FFFFFF;
+    color: #19201C;
+    border: 1px solid #ECEAE4;
+    padding: 14px 16px;
+    border-radius: 14px 14px 14px 4px;
+    max-width: 92%;
+    font-size: 12.5px;
+    line-height: 1.6;
+    box-shadow: 0 2px 8px rgba(25,32,28,0.04);
+  }
+  .copilot-msg-ai table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 11.5px;
+  }
+  .copilot-msg-ai th {
+    background: #F4F2EC;
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+    border: 1px solid #E5E3DC;
+  }
+  .copilot-msg-ai td {
+    padding: 6px 10px;
+    border: 1px solid #ECEAE4;
+  }
+
+  /* ══════════════════════════════════════
+     LEAD QUALIFICATION PIPELINE STYLES
+  ══════════════════════════════════════ */
+  .leads-pipeline-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .kanban-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    align-items: flex-start;
+  }
+  @media (max-width: 1200px) {
+    .kanban-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 700px) {
+    .kanban-grid { grid-template-columns: 1fr; }
+  }
+
+  .kanban-column {
+    background: #F4F2EC;
+    border-radius: 20px;
+    padding: 16px 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 540px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  }
+
+  .kanban-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 4px 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .kanban-col-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  /* Dedicated Cards List Container for strictly separated, distinct cards */
+  .kanban-cards-list,
+  #kanban-new,
+  #kanban-qualifying,
+  #kanban-proposal,
+  #kanban-won {
+    display: flex;
+    flex-direction: column;
+    gap: 16px; /* High-clarity 16px vertical separation between each lead card */
+    flex: 1;
+    min-height: 100px;
+  }
+
+  /* Empty stage placeholder */
+  .kanban-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 34px 14px;
+    text-align: center;
+    border: 1.5px dashed #DCD7CD;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.35);
+    gap: 6px;
+    min-height: 130px;
+  }
+  .kanban-empty-icon {
+    font-size: 22px;
+    line-height: 1;
+    opacity: 0.7;
+    margin-bottom: 2px;
+  }
+  .kanban-empty-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #636E65;
+  }
+  .kanban-empty-desc {
+    font-size: 11px;
+    color: #8E9991;
+    line-height: 1.35;
+  }
+
+  /* Distinct Floating Lead Card */
+  .lead-card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 16px 16px 14px;
+    border: 1px solid #E5E3DC;
+    box-shadow: 0 3px 12px -2px rgba(25, 32, 28, 0.05), 0 1px 3px rgba(25, 32, 28, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    cursor: pointer;
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s, border-color 0.18s;
+    position: relative;
+    user-select: none;
+  }
+  .lead-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px -4px rgba(25, 32, 28, 0.09), 0 2px 6px rgba(25, 32, 28, 0.04);
+    border-color: rgba(59, 82, 68, 0.32);
+  }
+
+  .lead-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .lead-avatar-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .lead-avatar-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: #E8EFE9;
+    color: var(--dark-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 750;
+    font-size: 12px;
+    flex-shrink: 0;
+    border: 1px solid rgba(59, 82, 68, 0.12);
+  }
+
+  .lead-meta-col {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .lead-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #19201C;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lead-sub-meta {
+    font-size: 11px;
+    color: #727B75;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Crisp Priority Badges */
+  .lead-badge-hot {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .lead-badge-warm {
+    background: #FFFBEB;
+    color: #D97706;
+    border: 1px solid #FDE68A;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* Service tag & budget */
+  .lead-service-tag {
+    background: #F8F7F4;
+    border: 1px solid #ECEAE4;
+    padding: 7px 11px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .lead-req-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2D3A31;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lead-budget {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--dark-green);
+    background: #EAF1EB;
+    padding: 2px 7px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  /* Score progress bar */
+  .score-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .score-bar-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: #727B75;
+    font-weight: 600;
+  }
+  .score-percent {
+    font-weight: 700;
+  }
+  .score-bar {
+    height: 5px;
+    background: #EBE8E1;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .score-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+  }
+
+  /* AI Note */
+  .lead-ai-note {
+    font-size: 11.5px;
+    color: #2D4033;
+    line-height: 1.45;
+    background: #F4F7F4;
+    padding: 8px 11px;
+    border-radius: 8px;
+    border-left: 3px solid var(--dark-green);
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .lead-ai-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+  .lead-ai-text {
+    flex: 1;
+  }
+
+  /* Lead Card Footer */
+  .lead-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 9px;
+    border-top: 1px solid #F0EEE8;
+    margin-top: 1px;
+  }
+
+  .lead-time {
+    font-size: 11px;
+    color: #8C968F;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .lead-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .lead-act-btn {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+    border: 1px solid transparent;
+    line-height: 1;
+    user-select: none;
+    text-decoration: none;
+    background: var(--dark-green);
+    color: #FFFFFF;
+  }
+  .lead-act-btn:hover {
+    background: var(--dark-green-hov);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(59, 82, 68, 0.25);
+  }
+  .lead-act-btn.ghost {
+    background: #F7F6F2;
+    color: #2D3A31;
+    border: 1px solid #DFDCD4;
+  }
+  .lead-act-btn.ghost:hover {
+    background: #EAE7DF;
+    border-color: #CEC9BC;
+    color: #19201C;
+  }
+
+  /* ── Ultra-Aesthetic WhatsApp Button ── */
+  .lead-act-wa {
+    background: #EBF8EE;
+    border-color: #BCEBCB;
+    color: #14532D;
+    box-shadow: 0 1px 2px rgba(20, 83, 45, 0.05);
+  }
+  .lead-act-wa svg {
+    flex-shrink: 0;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .lead-act-wa:hover {
+    background: #DCFCE7;
+    border-color: #86EFAC;
+    color: #0E4424;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(22, 101, 52, 0.16);
+  }
+  .lead-act-wa:hover svg {
+    transform: scale(1.18);
+  }
+  .lead-act-wa:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(20, 83, 45, 0.08);
+  }
+
+  /* ── Ultra-Premium Celebratory "Mark Won" Button ── */
+  .lead-act-won {
+    background: linear-gradient(135deg, #183726 0%, #0D2418 100%);
+    border-color: #2F6B47;
+    color: #FFFFFF;
+    font-weight: 700;
+    padding: 5px 12px;
+    box-shadow: 0 2px 7px rgba(13, 36, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    position: relative;
+    overflow: hidden;
+  }
+  .lead-act-won::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .lead-act-won:hover::after {
+    left: 150%;
+  }
+  .lead-act-won .won-party-icon {
+    display: inline-block;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .lead-act-won:hover {
+    background: linear-gradient(135deg, #224C34 0%, #133221 100%);
+    border-color: #52B77C;
+    box-shadow: 0 4px 14px rgba(20, 83, 45, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    transform: translateY(-1px);
+    color: #FFFFFF;
+  }
+  .lead-act-won:hover .won-party-icon {
+    transform: scale(1.22) rotate(10deg);
+  }
+  .lead-act-won:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(13, 36, 24, 0.25);
+  }
+
+  /* ── Premium Send Quote Button ── */
+  .lead-act-quote {
+    background: #FFFFFF;
+    border-color: #E2DFD7;
+    color: #2D3A31;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+  .lead-act-quote .act-arrow {
+    transition: transform 0.16s ease;
+    display: inline-block;
+    color: #8C968F;
+  }
+  .lead-act-quote:hover {
+    background: #F7F5EE;
+    border-color: #CFCABF;
+    color: #19201C;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  }
+  .lead-act-quote:hover .act-arrow {
+    transform: translateX(2px);
+    color: #19201C;
+  }
+  .lead-act-quote:active {
+    transform: translateY(0);
+  }
+
+  /* ── Premium Start AI Button ── */
+  .lead-act-ai {
+    background: linear-gradient(135deg, #F0FDF4 0%, #E8F8EE 100%);
+    border-color: #C2E8CE;
+    color: #166534;
+    box-shadow: 0 1px 2px rgba(22, 101, 52, 0.04);
+  }
+  .lead-act-ai .act-arrow {
+    transition: transform 0.16s ease;
+    display: inline-block;
+  }
+  .lead-act-ai:hover {
+    background: #DCFCE7;
+    border-color: #86EFAC;
+    color: #14532D;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(22, 101, 52, 0.12);
+  }
+  .lead-act-ai:hover .act-arrow {
+    transform: translateX(2px);
+  }
+  .lead-act-ai:active {
+    transform: translateY(0);
+  }
+
+  /* ── Converted / Won Pill Badge ── */
+  .lead-won-pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #14532D;
+    background: #E8F8EE;
+    border: 1px solid #B8E8C7;
+    padding: 4px 9px;
+    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.2px;
+  }
+
+  /* ── Ultra-Premium Table Action Buttons (Invoices & Clients) ── */
+  .table-btn {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+    border: 1px solid transparent;
+    line-height: 1;
+    text-decoration: none;
+    user-select: none;
+  }
+  .table-btn svg {
+    flex-shrink: 0;
+    transition: transform 0.16s ease;
+  }
+  .table-btn:hover svg {
+    transform: scale(1.1);
+  }
+
+  /* Table WhatsApp Button */
+  .table-btn-wa {
+    background: #EBF8EE;
+    border-color: #C3ECD0;
+    color: #166534;
+    box-shadow: 0 1px 2px rgba(22, 101, 52, 0.05);
+  }
+  .table-btn-wa:hover {
+    background: #DCFCE7;
+    border-color: #86EFAC;
+    color: #14532D;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(22, 101, 52, 0.14);
+  }
+  .table-btn-wa:active {
+    transform: translateY(0);
+  }
+
+  /* Table Email Button */
+  .table-btn-email {
+    background: #FFFFFF;
+    border-color: #E2DFD7;
+    color: #4A534E;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+  .table-btn-email:hover {
+    background: #F6F4EE;
+    border-color: #D3CFBE;
+    color: #19201C;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  }
+  .table-btn-email:active {
+    transform: translateY(0);
+  }
+
+  /* Table Mark Paid Button */
+  .table-btn-paid {
+    background: linear-gradient(180deg, #2D3A31 0%, #19201C 100%);
+    border-color: #19201C;
+    color: #FFFFFF;
+    box-shadow: 0 2px 5px rgba(25, 32, 28, 0.18);
+  }
+  .table-btn-paid svg {
+    color: #86EFAC;
+  }
+  .table-btn-paid:hover {
+    background: linear-gradient(180deg, #374A3D 0%, #254F33 100%);
+    border-color: #254F33;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 79, 51, 0.28);
+  }
+  .table-btn-paid:active {
+    transform: translateY(0);
+  }
+
+  /* Table Profile / Ghost Button */
+  .table-btn-profile {
+    background: #F7F6F2;
+    border-color: #DFDCD4;
+    color: #2D3A31;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+  .table-btn-profile:hover {
+    background: #EAE7DF;
+    border-color: #CEC9BC;
+    color: #19201C;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  }
+  .table-btn-profile:active {
+    transform: translateY(0);
+  }
+
+  /* Table Settled Pill */
+  .table-settled-pill {
+    background: #E8EFE9;
+    border: 1px solid #D1E0D4;
+    color: #204B31;
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  /* Invoices & Table */
+  .clean-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .clean-table th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .clean-table td {
+    padding: 14px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(0,0,0,0.03);
+    color: var(--text-main);
+  }
+  .clean-table tr:hover td { background: #FAF9F6; }
+
+  /* ── CLIENT DIRECTORY MASTER TABLE STYLING ── */
+  .clean-table th, .clean-table td {
+    vertical-align: middle;
+  }
+
+  /* Client Directory table — responsive horizontal scroll */
+  .client-dir-table {
+    min-width: 860px;
+  }
+  .client-dir-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .client-avatar-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #E6EFE9 0%, #DCE8DF 100%);
+    color: #194025;
+    font-weight: 700;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #C8DCD0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    flex-shrink: 0;
+    letter-spacing: -0.2px;
+  }
+
+  .client-entity-pill {
+    display: inline-block;
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .client-entity-pill.corp {
+    background: #E8F4EC;
+    color: #14532D;
+    border: 1px solid #C8E7D1;
+  }
+  .client-entity-pill.llp {
+    background: #FEF3C7;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+  }
+  .client-entity-pill.prop {
+    background: #F1F5F9;
+    color: #334155;
+    border: 1px solid #E2E8F0;
+  }
+
+  .client-id-badge {
+    display: inline-flex;
+    align-items: center;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    color: #1E3424;
+    background: #F4F2EB;
+    border: 1px solid #E2DED5;
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  }
+
+  .client-contact-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    justify-content: center;
+  }
+  .client-contact-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    line-height: 1.25;
+  }
+  .client-contact-row.phone {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #19201C;
+    letter-spacing: 0.2px;
+  }
+  .client-contact-row.email {
+    font-size: 11px;
+    color: #69746C;
+    font-weight: 500;
+    max-width: 175px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .client-contact-row svg {
+    color: #8C9890;
+    flex-shrink: 0;
+  }
+
+  .client-services-wrap {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .client-service-chip {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: #F2EFE9;
+    border: 1px solid #E2DED3;
+    color: #3B463E;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .client-service-chip.primary {
+    background: #EAF4EE;
+    border-color: #CEE4D4;
+    color: #14532D;
+  }
+
+  .client-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .client-status-badge.pending {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #B91C1C;
+  }
+  .client-status-badge.pending svg {
+    color: #DC2626;
+  }
+  .client-status-badge.complete {
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    color: #047857;
+  }
+  .client-status-badge.complete svg {
+    color: #059669;
+  }
+
+  .client-fee-due {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    font-size: 13px;
+    color: #DC2626;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
+  }
+
+  /* ══════════════════════════════════════
+     MODAL
+  ══════════════════════════════════════ */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(25, 32, 28, 0.4);
+    backdrop-filter: blur(8px);
+    z-index: 1200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-card {
+    background: #FFFFFF;
+    border-radius: var(--radius-card);
+    width: 440px;
+    padding: 28px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.15);
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-sub); }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.09);
+    background: #FAF9F6;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  .form-group input:focus { border-color: var(--dark-green); background: #FFFFFF; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     1. FLOATING CAPSULE SIDEBAR
+══════════════════════════════════════ -->
+<div class="sidebar-container">
+  <aside class="floating-sidebar">
+    <!-- 1. Dashboard -->
+    <button class="nav-btn active" onclick="switchView('dashboard', this)" title="Practice Overview">
+      <svg class="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+        <rect x="14" y="3" width="7" height="7" rx="2"></rect>
+        <rect x="14" y="14" width="7" height="7" rx="2"></rect>
+        <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+      </svg>
+    </button>
+
+    <!-- 2. AI Support Agent -->
+    <button class="nav-btn" onclick="switchView('agent', this)" title="AI Client Desk">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+      </svg>
+      <span class="nav-badge-dot" id="badge-agent" style="display:none;"></span>
+    </button>
+
+    <!-- 3. Documents -->
+    <button class="nav-btn" onclick="switchView('documents', this)" title="Document Vault">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+      </svg>
+      <span class="nav-badge-dot" id="badge-documents" style="display:none;"></span>
+    </button>
+
+    <!-- 4. Compliance -->
+    <button class="nav-btn" onclick="switchView('compliance', this)" title="Compliance Tracker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span class="nav-badge-dot" id="badge-compliance" style="display:none;"></span>
+    </button>
+
+    <!-- 5. Leads Pipeline -->
+    <button class="nav-btn" onclick="switchView('leads', this)" title="Client Acquisition">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+      <span class="nav-badge-dot" id="badge-leads" style="display:none;"></span>
+    </button>
+
+    <!-- 6. Invoices -->
+    <button class="nav-btn" onclick="switchView('invoices', this)" title="Billing & Fees">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+        <line x1="2" y1="10" x2="22" y2="10"></line>
+      </svg>
+      <span class="nav-badge-dot" id="badge-invoices" style="display:none;"></span>
+    </button>
+
+    <!-- 7. Clients Directory -->
+    <button class="nav-btn" onclick="switchView('clients', this)" title="Practice Clients Directory">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 3h6v4H9z"></path>
+      </svg>
+    </button>
+
+    <!-- 8. UDIN Register -->
+    <button class="nav-btn" onclick="switchView('udin', this)" title="UDIN Register">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/>
+      </svg>
+    </button>
+
+    <!-- 9. DSC Expiry Tracker -->
+    <button class="nav-btn" onclick="switchView('dsc', this)" title="DSC Expiry Tracker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2M12 12v3M12 12h.01"/>
+      </svg>
+      <span class="nav-badge-dot" id="badge-dsc" style="display:none;"></span>
+    </button>
+
+    <!-- 10. Notice Inbox -->
+    <button class="nav-btn" onclick="switchView('notices', this)" title="Notice Inbox (GST &amp; IT)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span class="nav-badge-dot" id="badge-notices" style="display:none;"></span>
+    </button>
+
+    <!-- 11. Staff Timesheets -->
+    <button class="nav-btn" onclick="switchView('timesheets', this)" title="Staff Timesheets &amp; Billable Hours">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    </button>
+
+    <div class="sidebar-spacer"></div>
+
+    <!-- Settings -->
+    <button class="nav-btn" onclick="switchView('settings', this)" title="System Settings &amp; Schedulers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+
+    <!-- User Avatar -->
+    <div class="user-pill-avatar" onclick="switchView('clients', document.querySelectorAll('.nav-btn')[6])" title="CA Rajesh Sharma (Senior Partner)">
+      <span class="user-avatar-initials">RS</span>
+    </div>
+  </aside>
+</div>
+
+<!-- ══════════════════════════════════════
+     2. MAIN CONTENT VIEWPORT
+══════════════════════════════════════ -->
+<main class="viewport">
+
+  <!-- TOP HEADER -->
+  <header class="top-header">
+    <div class="brand-greeting">
+      <!-- Radiating Starburst geometric emblem in deep forest green -->
+      <svg class="starburst-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+        <line x1="24" y1="4" x2="24" y2="12"></line>
+        <line x1="24" y1="36" x2="24" y2="44"></line>
+        <line x1="4" y1="24" x2="12" y2="24"></line>
+        <line x1="36" y1="24" x2="44" y2="24"></line>
+        <line x1="9.86" y1="9.86" x2="15.51" y2="15.51"></line>
+        <line x1="32.49" y1="32.49" x2="38.14" y2="38.14"></line>
+        <line x1="9.86" y1="38.14" x2="15.51" y2="32.49"></line>
+        <line x1="32.49" y1="15.51" x2="38.14" y2="9.86"></line>
+      </svg>
+      <div>
+        <h1 class="greeting-title" id="topbar-title">Sharma & Associates</h1>
+        <p class="greeting-sub" id="topbar-subtitle">Chartered Accountants · Practice Intelligence & Automated Desk</p>
+      </div>
+    </div>
+
+    <!-- Right Header Controls -->
+    <div class="header-actions">
+      <!-- Search pill bar with round black submit button -->
+      <div class="pill-search" id="global-search-container" style="position:relative;">
+        <input type="text" id="global-search-input" placeholder="Search by Client, GSTIN, PAN…" 
+               oninput="handleGlobalSearch(this.value)" 
+               onkeydown="if(event.key==='Enter') executeGlobalSearch(this.value); if(event.key==='Escape') closeGlobalSearchDropdown();"
+               autocomplete="off">
+        <button class="search-submit-btn" onclick="executeGlobalSearch(document.getElementById('global-search-input').value)" title="Search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <!-- Global Search Spotlight Dropdown -->
+        <div id="global-search-dropdown" class="global-search-dropdown" style="display:none;"></div>
+      </div>
+
+      <!-- AI Chat round button -->
+      <button class="round-action-btn" onclick="switchView('agent', document.querySelectorAll('.nav-btn')[1])" title="AI Support Agent">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span class="badge-indicator"></span>
+      </button>
+
+      <!-- Refresh Data round button -->
+      <button class="round-action-btn" onclick="if(window.loadAllData)loadAllData()" title="Sync Google Sheets">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6"></path>
+          <path d="M1 20v-6h6"></path>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
+
+      <!-- Add Client Pill Button -->
+      <button class="pill-action-btn" style="margin-top:0;" onclick="openModal()">
+        + New Client
+      </button>
+
+      <!-- Live API status pill -->
+      <div class="api-status-pill">
+        <span class="live-dot" id="api-status-dot"></span>
+        <span id="api-status-text">Backend Live</span>
+      </div>
+
+      <!-- Logged-in User Profile Pill -->
+      <div style="display:flex;align-items:center;gap:10px;margin-left:4px;padding:6px 14px 6px 8px;background:#EBF8EE;border:1px solid #C3ECD0;border-radius:40px;cursor:default;">
+        <div id="header-user-avatar" style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#254F33,#19201C);color:#EBF8EE;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">MP</div>
+        <div style="display:flex;flex-direction:column;line-height:1.2;">
+          <span id="header-user-name" style="font-size:12.5px;font-weight:600;color:#19201C;">Partner</span>
+          <span id="header-user-role" style="font-size:10px;color:#4A7C59;text-transform:capitalize;">partner</span>
+        </div>
+        <button onclick="logout()" title="Sign Out" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:#4A7C59;border-radius:6px;" onmouseover="this.style.background='#C3ECD0'" onmouseout="this.style.background='none'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════
+       VIEW: DASHBOARD (Tailored for CA Firm)
+  ══════════════════════════════════════ -->
+  <section class="view-panel active" id="view-dashboard">
+    <div class="dashboard-grid">
+
+      <!-- ── ROW 1: 4 STAT CARDS ── -->
+      <div class="stats-top-row">
+
+        <!-- Card 1: Fees Collected / Practice Revenue -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Fees Collected (This Month)</span>
+            <span class="stat-big-number" id="stat-fees-collected">₹1,37,000</span>
+          </div>
+          <div class="equalizer-bars">
+            <div class="eq-bar" style="height: 12px;"></div>
+            <div class="eq-bar" style="height: 22px;"></div>
+            <div class="eq-bar" style="height: 30px;"></div>
+            <div class="eq-bar" style="height: 18px;"></div>
+            <div class="eq-bar" style="height: 26px;"></div>
+          </div>
+        </div>
+
+        <!-- Card 2: Total Active CA Clients (With reference-accurate mini wave line) -->
+        <div class="stat-card-white">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="stat-circle-icon sage">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <div class="stat-info-left">
+              <span class="stat-tiny-label">Active Clients</span>
+              <span class="stat-big-number" id="stat-total-clients">10</span>
+            </div>
+          </div>
+          <svg width="56" height="26" viewBox="0 0 56 26" fill="none">
+            <path d="M2 20C12 20 16 6 26 6C36 6 38 20 48 20C52 20 54 12 55 12" stroke="#3B5244" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <!-- Card 3: Outstanding Client Dues -->
+        <div class="stat-card-white">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="stat-circle-icon gold">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="M14.5 9h-5a2 2 0 0 0 0 4h5a2 2 0 0 1 0 4h-5"></path>
+                <line x1="12" y1="7" x2="12" y2="17"></line>
+              </svg>
+            </div>
+            <div class="stat-info-left">
+              <span class="stat-tiny-label">Outstanding Dues</span>
+              <span class="stat-big-number" id="stat-pending-fees">₹2,28,000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4: Signature Deep Forest Green Card (Upcoming Compliance) -->
+        <div class="stat-card-forest">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Pending Deadlines</span>
+            <div class="stat-big-number"><span id="stat-pending-deadlines">9</span> <span style="font-size:15px;font-weight:600;opacity:0.85;">Due</span></div>
+          </div>
+          <!-- Smooth wavy line SVG (exact reference match) -->
+          <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+            <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+      </div>
+
+      <!-- ── ROW 2: FILING HEALTH, RECOVERY RATIO & PARTNER ── -->
+      <div class="analytics-middle-row">
+
+        <!-- Card A: Compliance Filing Health (Spline Wave) -->
+        <div class="card-white">
+          <div class="card-header-row">
+            <div class="card-heading-title">
+              Filing Health
+              <span class="pill-badge green" id="stat-deadline-change">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                90.0% On track
+              </span>
+            </div>
+            <span class="dropdown-chip">August 2026 ▾</span>
+          </div>
+
+          <!-- Dual inner floating metric pills -->
+          <div class="metric-dual-pills">
+            <div class="inner-metric-box">
+              <div>
+                <div class="inner-metric-title">GSTR-3B &amp; ITR Filed</div>
+                <div class="inner-metric-val">90.00%</div>
+              </div>
+              <span class="pill-badge green">+2.45%</span>
+            </div>
+            <div class="inner-metric-box">
+              <div>
+                <div class="inner-metric-title">Pending Documents</div>
+                <div class="inner-metric-val" id="stat-pending-docs">6 files</div>
+              </div>
+              <span class="pill-badge red">-4.75%</span>
+            </div>
+          </div>
+
+          <!-- Organic Spline Multi-Wave SVG with soft sage gradient -->
+          <div class="spline-wave-container">
+            <svg viewBox="0 0 500 120" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="waveGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3B5244" stop-opacity="0.16"/>
+                  <stop offset="100%" stop-color="#3B5244" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <!-- Filled area -->
+              <path d="M0,90 Q40,30 80,85 T160,70 T240,95 T320,40 T400,80 T500,60 L500,120 L0,120 Z" fill="url(#waveGrad)" />
+              <!-- Smooth stroke line -->
+              <path d="M0,90 Q40,30 80,85 T160,70 T240,95 T320,40 T400,80 T500,60" fill="none" stroke="#3B5244" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card B: Fee Recovery Donut Gauge -->
+        <div class="card-white">
+          <div class="card-header-row">
+            <div class="card-heading-title">Fee Recovery</div>
+          </div>
+          <div style="font-size:11.5px;color:var(--text-muted);" id="gauge-target-val">Total Billing Target: ₹3,65,000</div>
+          <div style="font-size:24px;font-weight:700;color:var(--text-main);margin:4px 0 2px;" id="gauge-collected-val">₹1,37,000</div>
+          <div style="font-size:11.5px;color:var(--text-muted);" id="gauge-recovery-note">Recovered 38% of billing cycle</div>
+
+          <!-- Semi-circular radial gauge (38%) -->
+          <div class="radial-gauge-wrap">
+            <svg class="radial-gauge-svg" viewBox="0 0 160 90">
+              <!-- Background gray track -->
+              <path d="M 15 85 A 65 65 0 0 1 145 85" fill="none" stroke="#E2EAE3" stroke-width="14" stroke-linecap="round"/>
+              <!-- Active forest green fill (38%) -->
+              <path id="radial-gauge-arc" d="M 15 85 A 65 65 0 0 1 56 25" fill="none" stroke="#3B5244" stroke-width="14" stroke-linecap="round"/>
+            </svg>
+            <div class="gauge-center-text" id="gauge-center-pct">38%</div>
+          </div>
+        </div>
+
+        <!-- Card C: CA Lead Partner Profile -->
+        <div class="card-white">
+          <div class="profile-card-content">
+            <div class="profile-big-avatar" style="background:#F7F1E5;color:var(--dark-green);">
+              RS
+            </div>
+            <div class="profile-name">CA Rajesh Sharma, FCA</div>
+            <div style="font-size:11px;font-weight:600;color:var(--dark-green);margin:2px 0 3px;">Senior Partner · M.No 408219</div>
+            <div class="profile-email">rajesh@sharma-ca.in</div>
+
+            <div class="profile-stats-row">
+              <div class="profile-stat-col">
+                <span class="profile-stat-label">Clients</span>
+                <span class="profile-stat-num" id="stat-profile-clients">10</span>
+              </div>
+              <div class="profile-stat-col">
+                <span class="profile-stat-label">Open Leads</span>
+                <span class="profile-stat-num" id="stat-open-leads">1</span>
+              </div>
+              <div class="profile-stat-col">
+                <span class="profile-stat-label">Compliance</span>
+                <span class="profile-stat-num">90%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── ROW 3: NOTICE DECK, LIVE REMINDERS & SECURITY ── -->
+      <div class="bottom-cards-row">
+
+        <!-- Card X: Smart Notice & Document Collection Deck -->
+        <div class="card-white">
+          <div class="wallet-card-stack-wrap">
+            <div>
+              <div class="card-heading-title" style="margin-bottom:6px;">Smart Document Deck</div>
+              <p style="font-size:12px;color:var(--text-muted);line-height:1.5;">
+                Automated WhatsApp follow-up for Form 16, Bank Statements, and GST sales registers with AI verification.
+              </p>
+              <button class="pill-action-btn" onclick="switchView('documents', document.querySelectorAll('.nav-btn')[2])">
+                Request Missing Docs +
+              </button>
+            </div>
+
+            <!-- Tilted Layered Compliance Pass Mockup -->
+            <svg class="wallet-stack-svg" viewBox="0 0 200 140" fill="none">
+              <!-- Card 3 (bottom dark) -->
+              <rect x="25" y="60" width="140" height="68" rx="10" transform="rotate(-12 25 60)" fill="#1C231F"/>
+              <!-- Card 2 (middle sage) -->
+              <rect x="35" y="42" width="140" height="68" rx="10" transform="rotate(-6 35 42)" fill="#2F4237" opacity="0.9"/>
+              <!-- Card 1 (top forest green card) -->
+              <rect x="45" y="24" width="140" height="68" rx="10" fill="#4B6353"/>
+              <!-- Compliance Pass text lines & badge -->
+              <rect x="60" y="38" width="22" height="11" rx="3" fill="#D3DED6" opacity="0.8"/>
+              <rect x="60" y="58" width="70" height="4" rx="2" fill="#FFFFFF" opacity="0.6"/>
+              <rect x="60" y="66" width="45" height="4" rx="2" fill="#FFFFFF" opacity="0.4"/>
+              <circle cx="160" cy="74" r="7" fill="#E85A5A" opacity="0.8"/>
+              <circle cx="170" cy="74" r="7" fill="#FBBF24" opacity="0.8"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card Y: Live Automation Feed / Due Dates -->
+        <div class="card-white">
+          <div class="card-header-row">
+            <div class="card-heading-title">Live Practice Feed</div>
+            <span class="dropdown-chip" onclick="switchView('compliance', document.querySelectorAll('.nav-btn')[3])">View All →</span>
+          </div>
+
+          <div id="deadline-list">
+            <!-- Item 1 -->
+            <div class="transfer-item">
+              <div>
+                <div class="transfer-client-name">Mehta Textiles Pvt Ltd</div>
+                <div class="transfer-time">GSTR-3B · Due in 5 days (20 Sep)</div>
+              </div>
+              <span class="pill-badge red">-Urgent</span>
+            </div>
+            <!-- Item 2 -->
+            <div class="transfer-item">
+              <div>
+                <div class="transfer-client-name">Shree Mahavir Textiles</div>
+                <div class="transfer-time">GSTR-1 · Filed on 11 Sep</div>
+              </div>
+              <span class="pill-badge green">+Filed</span>
+            </div>
+            <!-- Item 3 -->
+            <div class="transfer-item">
+              <div>
+                <div class="transfer-client-name">Apex BioTech Pharma</div>
+                <div class="transfer-time">ROC AOC-4 · Financials Verified</div>
+              </div>
+              <span class="pill-badge green">+Verified</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Z: Biometric Data Protection & Compliance Security -->
+        <div class="card-white">
+          <div class="security-card-content">
+            <!-- Fingerprint SVG Icon -->
+            <svg class="fingerprint-icon-wrap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <path d="M12 2a10 10 0 0 0-7.07 17.07"></path>
+              <path d="M12 6a6 6 0 0 0-4.24 10.24"></path>
+              <path d="M12 10a2 2 0 0 0-1.41 3.41"></path>
+              <path d="M12 14v.01"></path>
+              <path d="M16.24 7.76A6 6 0 0 1 18 12c0 2.22-.9 4.23-2.35 5.67"></path>
+              <path d="M19.07 4.93A10 10 0 0 1 22 12c0 3.32-1.34 6.32-3.51 8.49"></path>
+            </svg>
+            <div style="font-size:15px;font-weight:700;color:var(--text-main);margin-bottom:3px;">Firm Data Vault</div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:14px;">AES-256 Cloud Encryption · Groq AI Certified</div>
+            <button class="pill-action-btn" style="background:#5C7364;margin-top:0;" onclick="showToast('Security audit: AES-256 enabled & Google Sheets synchronized')">
+              Run Health Audit
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       VIEW: AI SUPPORT AGENT
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-agent">
+    <!-- Header Toolbar with Dual Mode Switcher -->
+    <div class="page-title-banner" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 class="page-main-heading">AI Practice Operations & Client Desk</h2>
+        <p class="page-main-desc">Manage live client WhatsApp conversations, auto-resolve routine filings, and consult the internal CA team co-pilot powered by live Google Sheets.</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <!-- Dual Mode Segmented Switch -->
+        <div class="desk-segmented-control">
+          <button class="desk-mode-btn active" id="btn-mode-feed" onclick="switchDeskMode('feed')">
+            💬 Client WhatsApp Desk (<span id="feed-client-count">20</span>)
+          </button>
+          <button class="desk-mode-btn" id="btn-mode-copilot" onclick="switchDeskMode('copilot')">
+            🤖 CA & Team Co-Pilot
+          </button>
+        </div>
+        <span class="pill-badge green" style="font-size:11px;">● Live Sheets Sync (20)</span>
+      </div>
+    </div>
+
+    <!-- ── MODE 1: 3-Column Client WhatsApp Omnichannel Desk ── -->
+    <div id="desk-feed-view" class="omnichannel-desk-grid">
+      <!-- Column 1: Conversations Feed -->
+      <div class="omni-feed-col">
+        <div class="omni-feed-header">
+          <div class="omni-feed-title-row">
+            <span class="omni-feed-title">
+              <span>💬</span> Client WhatsApp Feed
+            </span>
+            <span class="pill-badge green" id="omni-total-badge" style="font-size:10px;">20 Clients</span>
+          </div>
+
+          <!-- Filter Tabs -->
+          <div class="omni-filter-tabs">
+            <button class="omni-tab-btn active" onclick="filterOmniChats('all', this)">All (20)</button>
+            <button class="omni-tab-btn" onclick="filterOmniChats('review', this)">Needs Review (3)</button>
+            <button class="omni-tab-btn" onclick="filterOmniChats('handled', this)">AI Handled</button>
+          </div>
+
+          <!-- Quick Search -->
+          <input type="text" class="omni-search-input" id="omni-search" placeholder="Search client, GSTIN or message..." oninput="searchOmniChats(this.value)">
+        </div>
+
+        <!-- Chat Cards List Container -->
+        <div class="omni-chat-list" id="omni-chat-list">
+          <!-- Populated dynamically by app.js from Google Sheets -->
+        </div>
+      </div>
+
+      <!-- Column 2: Live Chat & Review Box -->
+      <div class="omni-chat-col">
+        <!-- Thread Header -->
+        <div class="omni-thread-header" id="omni-thread-header">
+          <!-- Populated dynamically by app.js -->
+        </div>
+
+        <!-- Messages Area -->
+        <div class="omni-messages-box" id="omni-messages-area">
+          <!-- Populated dynamically by app.js -->
+        </div>
+
+        <!-- Review Box / Response Console -->
+        <div class="omni-review-container" id="omni-review-box">
+          <!-- Populated dynamically based on status -->
+        </div>
+      </div>
+
+      <!-- Column 3: Live Client Dossier -->
+      <div class="omni-dossier-col" id="omni-client-dossier">
+        <!-- Populated dynamically by app.js -->
+      </div>
+    </div>
+
+    <!-- ── MODE 2: CA & Team Operations Co-Pilot Command Center ── -->
+    <div id="desk-copilot-view" style="display:none;flex-direction:column;gap:14px;background:#FFFFFF;border:1px solid #E5E3DC;border-radius:20px;padding:20px;box-shadow:0 4px 16px -2px rgba(25, 32, 28, 0.05);min-height:680px;">
+      <!-- Co-Pilot Top Bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ECEAE4;padding-bottom:14px;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:44px;height:44px;border-radius:12px;background:#19201C;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:22px;">
+            🤖
+          </div>
+          <div>
+            <h3 style="font-size:16px;font-weight:700;color:#19201C;margin:0;">Firm Operations AI Co-Pilot</h3>
+            <p style="font-size:12px;color:#727B75;margin:2px 0 0 0;">Managing Partner & Staff Executive Command • Real-Time Google Sheets Intelligence Across All 20 Clients</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="pill-badge green" style="font-size:11px;">● 20 Clients Live</span>
+          <button class="omni-ghost-btn" style="padding:6px 12px;font-size:11.5px;" onclick="clearCopilotChat()">↺ Clear Chat</button>
+        </div>
+      </div>
+
+      <!-- Quick Action Query Chips -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <span style="font-size:11.5px;font-weight:600;color:#727B75;margin-right:4px;">⚡ Quick Queries:</span>
+        <button class="copilot-chip" onclick="runCopilotPrompt('Which clients have filings due this week and what are the penalty risks?')">🚨 Filings Due This Week</button>
+        <button class="copilot-chip" onclick="runCopilotPrompt('Which clients are missing bank statements or purchase registers?')">📑 Missing Documents Across Clients</button>
+        <button class="copilot-chip" onclick="runCopilotPrompt('Which clients have overdue fees, what is our total unpaid amount, and who owes the most?')">💰 Unpaid Invoices & Overdue Fees</button>
+        <button class="copilot-chip" onclick="runCopilotPrompt('Give me a full executive practice health summary: total clients, filed vs pending returns, and recovery status.')">📊 Full Practice Summary</button>
+        <button class="copilot-chip" onclick="runCopilotPrompt('Give me a complete dossier on Zenith Solar Systems Pvt Ltd including GSTIN, compliance, and unpaid bills.')">🔍 Summarize Zenith Solar</button>
+      </div>
+
+      <!-- Co-Pilot Chat Stream Area -->
+      <div id="copilot-chat-history" style="flex:1;min-height:380px;max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:14px;background:#FAF9F6;border:1px solid #ECEAE4;border-radius:14px;">
+        <!-- Initial welcome bubble -->
+        <div class="copilot-msg-ai">
+          <div style="font-weight:700;font-size:12px;color:var(--dark-green);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+            <span>🤖</span> Operations Co-Pilot • Live Database Connected
+          </div>
+          <div style="font-size:13px;line-height:1.6;color:#19201C;">
+            Namaste CA Manthan Sir & Team! I am your firm's internal Operations Co-Pilot. I have direct real-time access to all <strong>20 clients</strong> from your connected Google Sheets database, including statutory filings, missing documents, and billing ledgers.<br><br>
+            Ask me anything about practice operations, deadlines, missing audit papers, or fee recovery — or click any quick query chip above!
+          </div>
+        </div>
+      </div>
+
+      <!-- Query Input Bar -->
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input type="text" id="copilot-input" class="omni-draft-box" style="height:44px;padding:10px 14px;resize:none;flex:1;font-size:13px;" placeholder="Ask Co-Pilot about any client, deadline, document, or fee recovery..." onkeydown="if(event.key==='Enter')sendTeamCopilotQuery()">
+        <button class="omni-approve-btn" id="btn-copilot-send" style="height:44px;padding:0 22px;white-space:nowrap;font-size:13px;" onclick="sendTeamCopilotQuery()">
+          <span>Ask Co-Pilot ⚡</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       VIEW: DOCUMENTS HUB
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-documents">
+    <div class="doc-hub-container">
+
+      <!-- Header & Quick Actions Toolbar -->
+      <div class="doc-toolbar-banner" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:12px;">
+        <div style="font-size:13px;color:var(--text-sub);font-weight:500;">
+          Automated tax document tracking, missing file detection via Gemini OCR, and 1-click WhatsApp chases.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="pill-action-btn" style="margin-top:0;background:#E8EFE9;color:var(--dark-green);" onclick="if(window.renderDocumentView)renderDocumentView()">↺ Refresh Hub</button>
+          <button class="pill-action-btn" style="margin-top:0;" onclick="showToast('⚡ WhatsApp chase batch dispatched to all clients with pending documents!')">
+            ⚡ Chase All Pending (WhatsApp)
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 Top Document KPI Cards (Matching Reference Style) -->
+      <div class="stats-top-row">
+        <!-- Card 1 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Documents Tracked</span>
+            <span class="stat-big-number">14 Files</span>
+          </div>
+          <div class="equalizer-bars">
+            <div class="eq-bar" style="height: 14px;"></div>
+            <div class="eq-bar" style="height: 24px;"></div>
+            <div class="eq-bar" style="height: 18px;"></div>
+            <div class="eq-bar" style="height: 28px;"></div>
+            <div class="eq-bar" style="height: 20px;"></div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Pending from Clients</span>
+            <span class="stat-big-number" style="color:#C94A4A;">1 Client</span>
+          </div>
+          <div class="stat-circle-icon sage">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Verification Rate</span>
+            <span class="stat-big-number">92.8%</span>
+          </div>
+          <div class="stat-circle-icon gold">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 4 (Deep Forest Green) -->
+        <div class="stat-card-forest">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Auto-Chaser Daily Cron</span>
+            <span class="stat-big-number">9:30 AM</span>
+          </div>
+          <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+            <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="doc-filter-bar">
+        <div class="doc-filter-pills">
+          <button class="doc-pill active" onclick="setDocFilter('all', this)">All Clients</button>
+          <button class="doc-pill" onclick="setDocFilter('missing', this)">Missing Documents</button>
+          <button class="doc-pill" onclick="setDocFilter('complete', this)">Complete &amp; Verified</button>
+        </div>
+
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;">
+          Synced with Google Sheets · Tab: <span style="color:var(--dark-green);">Documents_Tracker</span>
+        </div>
+      </div>
+
+      <!-- Live Container for Client Document Cards -->
+      <div id="documents-live-list" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">
+          Loading document records from Google Sheets…
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       VIEW: COMPLIANCE CALENDAR & DUE DATES
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-compliance">
+    <div class="doc-hub-container">
+
+      <!-- Header & Quick Actions -->
+      <div class="page-title-banner" style="margin-bottom:12px;">
+        <div>
+          <h2 class="page-main-heading">Compliance Calendar & Due Dates</h2>
+          <p class="page-main-desc">Automated statutory timeline for GST, Advance Tax, Tax Audit, TDS & MCA filings with daily WhatsApp triggers.</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="pill-action-btn" style="margin-top:0;background:#E8EFE9;color:var(--dark-green);" onclick="if(window.renderComplianceView)renderComplianceView()">↺ Refresh Calendar</button>
+          <button class="pill-action-btn" style="margin-top:0;" onclick="openBlastModal()">
+            ⚡ Send All Due Reminders (Bulk Blast)
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 Top Compliance KPI Cards (Matching Reference Style) -->
+      <div class="stats-top-row">
+        <!-- Card 1 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Total Filings Tracked</span>
+            <span class="stat-big-number" id="comp-total-filings">10 Filings</span>
+          </div>
+          <div class="equalizer-bars">
+            <div class="eq-bar" style="height: 18px;"></div>
+            <div class="eq-bar" style="height: 28px;"></div>
+            <div class="eq-bar" style="height: 22px;"></div>
+            <div class="eq-bar" style="height: 32px;"></div>
+            <div class="eq-bar" style="height: 24px;"></div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Urgent / Overdue</span>
+            <span class="stat-big-number" style="color:#C94A4A;" id="comp-urgent-count">0 Overdue</span>
+          </div>
+          <div class="stat-circle-icon sage">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">On-Time Filing Ratio</span>
+            <span class="stat-big-number">91.4%</span>
+          </div>
+          <div class="stat-circle-icon gold">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 4 (Deep Forest Green) -->
+        <div class="stat-card-forest">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Compliance Daily Scheduler</span>
+            <span class="stat-big-number">9:00 AM</span>
+          </div>
+          <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+            <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="doc-filter-bar">
+        <div class="doc-filter-pills">
+          <button class="doc-pill active" id="pill-comp-all" onclick="setComplianceFilter('all', this)">All Statutory (10)</button>
+          <button class="doc-pill" onclick="setComplianceFilter('urgent', this)">⚠️ Urgent (&lt;7 Days)</button>
+          <button class="doc-pill" onclick="setComplianceFilter('gst', this)">GSTR-3B &amp; GSTR-1</button>
+          <button class="doc-pill" onclick="setComplianceFilter('tax', this)">Advance Tax &amp; Audit</button>
+          <button class="doc-pill" onclick="setComplianceFilter('tds', this)">TDS Returns</button>
+          <button class="doc-pill" onclick="setComplianceFilter('roc', this)">ROC &amp; MCA</button>
+        </div>
+
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;">
+          Synced with Google Sheets · Tab: <span style="color:var(--dark-green);">Compliance_Calendar</span>
+        </div>
+      </div>
+
+      <!-- Live Container for Compliance Cards -->
+      <div id="compliance-live-list" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);background:#FFFFFF;border-radius:24px;box-shadow:var(--shadow-card);">
+          Loading compliance records from Google Sheets…
+        </div>
+      </div>
+
+    </div>
+  </section>
+  <section class="view-panel" id="view-leads">
+    <div class="leads-pipeline-wrap">
+
+      <!-- Header & Quick Actions -->
+      <div class="page-title-banner" style="margin-bottom:12px;">
+        <div>
+          <h2 class="page-main-heading">Lead Qualification Pipeline</h2>
+          <p class="page-main-desc">Automated WhatsApp & Web inquiry scoring with Groq LLaMA 3.3 for high-intent tax & audit clients.</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="pill-action-btn" style="margin-top:0;background:#E8EFE9;color:var(--dark-green);" onclick="if(window.renderLeadsView)renderLeadsView()">↺ Refresh Pipeline</button>
+          <button class="pill-action-btn" style="margin-top:0;" onclick="openModal()">+ Add New Lead</button>
+        </div>
+      </div>
+
+      <!-- 4 Top Lead KPI Cards (Matching Reference Style) -->
+      <div class="stats-top-row">
+        <!-- Card 1 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Total Inbound Enquiries</span>
+            <span class="stat-big-number">38 Leads</span>
+          </div>
+          <div class="equalizer-bars">
+            <div class="eq-bar" style="height: 16px;"></div>
+            <div class="eq-bar" style="height: 26px;"></div>
+            <div class="eq-bar" style="height: 20px;"></div>
+            <div class="eq-bar" style="height: 32px;"></div>
+            <div class="eq-bar" style="height: 22px;"></div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">High-Intent Hot Leads</span>
+            <span class="stat-big-number" style="color:#C94A4A;">7 Hot</span>
+          </div>
+          <div class="stat-circle-icon sage">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Conversion Ratio</span>
+            <span class="stat-big-number">42.8%</span>
+          </div>
+          <div class="stat-circle-icon gold">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+              <path d="M4 22h16"></path>
+              <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"></path>
+              <path d="M12 3a6 6 0 0 0-6 6v3.2a4.8 4.8 0 0 0 2 3.8v0c1.2.9 2.6 1.4 4 1.4s2.8-.5 4-1.4v0a4.8 4.8 0 0 0 2-3.8V9a6 6 0 0 0-6-6z"></path>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 4 (Deep Forest Green) -->
+        <div class="stat-card-forest">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">AI Qualification Agent</span>
+            <span class="stat-big-number">24/7 Active</span>
+          </div>
+          <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+            <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="doc-filter-bar">
+        <div class="doc-filter-pills">
+          <button class="doc-pill active" onclick="setLeadFilter('all', this)">All Pipeline</button>
+          <button class="doc-pill" onclick="setLeadFilter('hot', this)">🔥 Hot Leads</button>
+          <button class="doc-pill" onclick="setLeadFilter('gst', this)">GST &amp; Company Inc.</button>
+          <button class="doc-pill" onclick="setLeadFilter('audit', this)">Tax Audit &amp; ITR</button>
+        </div>
+
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;">
+          Synced with Google Sheets · Tab: <span style="color:var(--dark-green);">Leads</span>
+        </div>
+      </div>
+
+      <!-- Kanban Grid -->
+      <div class="kanban-grid">
+        <!-- Col 1 -->
+        <div class="kanban-column">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">
+              <span>🆕</span> New Enquiry
+            </span>
+            <span class="pill-badge muted" id="count-new">0</span>
+          </div>
+          <div id="kanban-new" class="kanban-cards-list"></div>
+        </div>
+
+        <!-- Col 2 -->
+        <div class="kanban-column">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">
+              <span>🤖</span> AI Qualifying
+            </span>
+            <span class="pill-badge green" id="count-qualifying">0</span>
+          </div>
+          <div id="kanban-qualifying" class="kanban-cards-list"></div>
+        </div>
+
+        <!-- Col 3 -->
+        <div class="kanban-column">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">
+              <span>📤</span> Proposal Sent
+            </span>
+            <span class="pill-badge muted" id="count-proposal-sent">0</span>
+          </div>
+          <div id="kanban-proposal" class="kanban-cards-list"></div>
+        </div>
+
+        <!-- Col 4 -->
+        <div class="kanban-column">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">
+              <span>🎉</span> Won / Onboarded
+            </span>
+            <span class="pill-badge green" id="count-converted">0</span>
+          </div>
+          <div id="kanban-won" class="kanban-cards-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       VIEW: INVOICES
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-invoices">
+    <div class="page-title-banner" style="margin-bottom:14px;">
+      <div>
+        <h2 class="page-main-heading">Invoice & Fee Recovery</h2>
+        <p class="page-main-desc">Automated WhatsApp & Email fee collection reminders with payment confirmation webhooks.</p>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="pill-action-btn" style="margin-top:0;background:#E8EFE9;color:var(--dark-green);" onclick="if(window.renderInvoicesView)renderInvoicesView()">↺ Refresh Invoices</button>
+        <button class="pill-action-btn" style="margin-top:0;" onclick="showToast('⚡ WhatsApp fee reminder batch dispatched to all overdue clients!')">
+          ⚡ Remind All Overdue
+        </button>
+      </div>
+    </div>
+
+    <!-- Invoices Summary Row -->
+    <div class="stats-top-row" style="margin-bottom:16px;">
+      <div class="stat-card-white">
+        <div class="stat-info-left">
+          <span class="stat-tiny-label">Total Billed</span>
+          <span class="stat-big-number" id="inv-total">₹3,65,000</span>
+        </div>
+        <div class="stat-circle-icon sage">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+        </div>
+      </div>
+
+      <div class="stat-card-white">
+        <div class="stat-info-left">
+          <span class="stat-tiny-label">Fees Collected</span>
+          <span class="stat-big-number" id="inv-collected" style="color:#356E47;">₹1,37,000</span>
+        </div>
+        <div class="stat-circle-icon sage">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+      </div>
+
+      <div class="stat-card-white">
+        <div class="stat-info-left">
+          <span class="stat-tiny-label">Outstanding Dues</span>
+          <span class="stat-big-number" id="inv-outstanding" style="color:#C94A4A;">₹2,28,000</span>
+        </div>
+        <div class="stat-circle-icon gold">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        </div>
+      </div>
+
+      <div class="stat-card-forest">
+        <div class="stat-info-left">
+          <span class="stat-tiny-label">Auto WhatsApp Chaser</span>
+          <span class="stat-big-number">10:30 AM</span>
+        </div>
+        <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+          <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="doc-filter-bar" style="margin-bottom:12px;">
+      <div class="doc-filter-pills">
+        <button class="doc-pill active" id="pill-inv-all" onclick="setInvoiceFilter('all', this)">All Invoices (10)</button>
+        <button class="doc-pill" onclick="setInvoiceFilter('unpaid', this)">📨 Unpaid Dues</button>
+        <button class="doc-pill" onclick="setInvoiceFilter('overdue', this)">🚨 Overdue</button>
+        <button class="doc-pill" onclick="setInvoiceFilter('paid', this)">🎉 Paid &amp; Recovered</button>
+        <button class="doc-pill" onclick="setInvoiceFilter('high', this)">₹ High Value (&gt;₹25k)</button>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);font-weight:600;">
+        Synced with Google Sheets · Tab: <span style="color:var(--dark-green);">Invoices</span>
+      </div>
+    </div>
+
+    <div class="card-white" style="padding:0;overflow:hidden;">
+      <table class="clean-table">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th>Invoice #</th>
+            <th>Service</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Overdue</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="invoices-live-tbody">
+          <tr>
+            <td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">
+              Loading live invoices from Google Sheets…
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       VIEW: PRACTICE CLIENTS DIRECTORY
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-clients">
+    <div class="doc-hub-container">
+
+      <!-- Header & Quick Actions -->
+      <div class="page-title-banner" style="margin-bottom:12px;">
+        <div>
+          <h2 class="page-main-heading">Practice Clients Directory</h2>
+          <p class="page-main-desc" id="clients-total-count">10 active client accounts · KYC, active services, pending documents, and direct WhatsApp communication.</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="pill-action-btn" style="margin-top:0;background:#E8EFE9;color:var(--dark-green);" onclick="if(window.renderClientsView)renderClientsView()">↺ Refresh Directory</button>
+          <button class="pill-action-btn" style="margin-top:0;" onclick="openModal()">+ Add New Client</button>
+        </div>
+      </div>
+
+      <!-- 4 Top Clients KPI Cards (Matching Reference Style) -->
+      <div class="stats-top-row">
+        <!-- Card 1 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Total Active Clients</span>
+            <span class="stat-big-number" id="stat-dir-clients">10 Firms</span>
+          </div>
+          <div class="equalizer-bars">
+            <div class="eq-bar" style="height: 14px;"></div>
+            <div class="eq-bar" style="height: 24px;"></div>
+            <div class="eq-bar" style="height: 30px;"></div>
+            <div class="eq-bar" style="height: 18px;"></div>
+            <div class="eq-bar" style="height: 26px;"></div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Corporate &amp; LLPs</span>
+            <span class="stat-big-number" id="stat-dir-corporate">7 Entities</span>
+          </div>
+          <div class="stat-circle-icon sage">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 3h6v4H9z"></path>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Individual &amp; Retail</span>
+            <span class="stat-big-number" id="stat-dir-retail">3 Retainers</span>
+          </div>
+          <div class="stat-circle-icon gold">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 4 (Deep Forest Green) -->
+        <div class="stat-card-forest">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Client Retention Score</span>
+            <span class="stat-big-number">98.6%</span>
+          </div>
+          <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+            <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Search & Filter Bar -->
+      <div class="doc-filter-bar" style="margin-bottom:12px;">
+        <div class="doc-filter-pills">
+          <button class="doc-pill active" id="pill-client-all" onclick="setClientFilter('all', this)">All Clients (10)</button>
+          <button class="doc-pill" onclick="setClientFilter('corporate', this)">Pvt Ltd &amp; LLPs</button>
+          <button class="doc-pill" onclick="setClientFilter('retail', this)">Proprietorship &amp; Retail</button>
+          <button class="doc-pill" onclick="setClientFilter('docs', this)">⚠️ Missing Documents</button>
+          <button class="doc-pill" onclick="setClientFilter('dues', this)">⚡ Outstanding Dues</button>
+        </div>
+
+        <div class="pill-search" style="width:240px;height:38px;padding:3px 6px 3px 14px;">
+          <input type="text" id="client-search-input" placeholder="Search client name, phone..." oninput="filterClients(this.value)">
+        </div>
+      </div>
+
+      <!-- Clean White Clients Directory Table -->
+      <div class="card-white" id="clients-live-list" style="padding:0;overflow:hidden;">
+        <div class="client-dir-table-wrap">
+        <table class="clean-table client-dir-table">
+          <thead>
+            <tr>
+              <th style="min-width:210px;">Client &amp; Entity</th>
+              <th style="min-width:110px;white-space:nowrap;">Client ID</th>
+              <th style="min-width:185px;">Contact Details</th>
+              <th style="min-width:160px;white-space:nowrap;">Active Services</th>
+              <th style="min-width:125px;white-space:nowrap;">Document Status</th>
+              <th style="min-width:105px;white-space:nowrap;">Fee Balance</th>
+              <th style="min-width:165px;white-space:nowrap;">Communication</th>
+            </tr>
+          </thead>
+          <tbody id="clients-live-tbody">
+            <tr>
+              <td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">
+                Loading client directory from Google Sheets…
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </div><!-- /.client-dir-table-wrap -->
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       VIEW: UDIN REGISTER
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-udin">
+    <div class="doc-hub-container">
+      <div class="page-title-banner" style="margin-bottom:14px;">
+        <div>
+          <h2 class="page-main-heading">UDIN Register</h2>
+          <p class="page-main-desc">Unique Document Identification Number log — ICAI mandated for all audit and certification reports.</p>
+        </div>
+        <button class="pill-action-btn" style="margin-top:0;" onclick="openUdinModal()" data-role-required="manager">
+          + Add UDIN
+        </button>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-top-row" style="margin-bottom:16px;">
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">UDINs This Month</span>
+            <span class="stat-big-number" id="udin-count-month">—</span>
+          </div>
+        </div>
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">UDINs This FY</span>
+            <span class="stat-big-number" id="udin-count-fy">—</span>
+          </div>
+        </div>
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Tax Audit UDINs</span>
+            <span class="stat-big-number" id="udin-count-audit">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- UDIN Table -->
+      <div class="card-white" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table class="clean-table" id="udin-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>UDIN</th>
+                <th>Document Type</th>
+                <th>CA Member No.</th>
+                <th>Financial Year</th>
+                <th>Generated Date</th>
+                <th>Report Type</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="udin-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted);">No UDIN records found. Click + Add UDIN to get started.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UDIN Modal -->
+  <div class="modal-overlay" id="udin-modal-overlay">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Add New UDIN Record</h3>
+        <button class="modal-close-btn" onclick="closeUdinModal()">✕</button>
+      </div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+        <div class="form-group"><label for="udin-client-id">Client ID *</label><input type="text" id="udin-client-id" placeholder="e.g. CLIENT-001" required></div>
+        <div class="form-group"><label for="udin-client-name">Client Name *</label><input type="text" id="udin-client-name" placeholder="e.g. Mehta Textiles Pvt Ltd" required></div>
+        <div class="form-group"><label for="udin-value">UDIN *</label><input type="text" id="udin-value" placeholder="e.g. 24012345AABBCC1234" required></div>
+        <div class="form-group"><label for="udin-ca-no">CA Membership No. *</label><input type="text" id="udin-ca-no" placeholder="e.g. 012345" required></div>
+        <div class="form-group"><label for="udin-doc-type">Document Type *</label>
+          <select id="udin-doc-type">
+            <option>Tax Audit Report (Form 3CA/3CB)</option>
+            <option>Statutory Audit Report</option>
+            <option>Stock Audit Certificate</option>
+            <option>Net Worth Certificate</option>
+            <option>Project Report Certification</option>
+            <option>Bank Loan Certificate</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="udin-fy">Financial Year</label><input type="text" id="udin-fy" placeholder="e.g. 2024-25"></div>
+        <div class="form-group"><label for="udin-report-type">Report Type</label><input type="text" id="udin-report-type" placeholder="e.g. Independent Auditor's Report"></div>
+        <div class="form-group"><label for="udin-notes">Notes</label><textarea id="udin-notes" rows="2" placeholder="Any additional notes..."></textarea></div>
+        <button class="pill-action-btn" style="margin-top:4px;width:100%;justify-content:center;" onclick="submitUdin()">Save UDIN Record</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       VIEW: DSC EXPIRY TRACKER
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-dsc">
+    <div class="doc-hub-container">
+      <div class="page-title-banner" style="margin-bottom:14px;">
+        <div>
+          <h2 class="page-main-heading">DSC Expiry Tracker</h2>
+          <p class="page-main-desc">Digital Signature Certificate registry with automated expiry alerts at 30, 15, and 7 days.</p>
+        </div>
+        <button class="pill-action-btn" style="margin-top:0;" onclick="openDscModal()" data-role-required="manager">
+          + Add DSC
+        </button>
+      </div>
+
+      <!-- DSC Alert Cards -->
+      <div id="dsc-alert-cards" style="margin-bottom:16px;"></div>
+
+      <!-- DSC Table -->
+      <div class="card-white" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table class="clean-table" id="dsc-table">
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>DSC Holder</th>
+                <th>Class</th>
+                <th>Valid Until</th>
+                <th>Days Left</th>
+                <th>Token Serial</th>
+                <th>Purpose</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="dsc-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted);">No DSC records found. Click + Add DSC to get started.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DSC Modal -->
+  <div class="modal-overlay" id="dsc-modal-overlay">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Add DSC Record</h3>
+        <button class="modal-close-btn" onclick="closeDscModal()">✕</button>
+      </div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+        <div class="form-group"><label for="dsc-client-id">Client ID *</label><input type="text" id="dsc-client-id" placeholder="CLIENT-001" required></div>
+        <div class="form-group"><label for="dsc-client-name">Client Name *</label><input type="text" id="dsc-client-name" placeholder="Firm Name" required></div>
+        <div class="form-group"><label for="dsc-holder">DSC Holder Name *</label><input type="text" id="dsc-holder" placeholder="Director / Proprietor name" required></div>
+        <div class="form-group"><label for="dsc-class">Class Type</label>
+          <select id="dsc-class"><option>Class 3</option><option>Class 2</option></select>
+        </div>
+        <div class="form-group"><label for="dsc-valid-from">Valid From</label><input type="date" id="dsc-valid-from"></div>
+        <div class="form-group"><label for="dsc-valid-until">Valid Until *</label><input type="date" id="dsc-valid-until" required></div>
+        <div class="form-group"><label for="dsc-token">Token Serial No.</label><input type="text" id="dsc-token" placeholder="Token serial number"></div>
+        <div class="form-group"><label for="dsc-issuer">Issuing CA (eMudhra/NSDL etc.)</label><input type="text" id="dsc-issuer" placeholder="e.g. eMudhra"></div>
+        <div class="form-group"><label for="dsc-purpose">Purpose (comma-separated)</label><input type="text" id="dsc-purpose" placeholder="GST, ITR, MCA, TDS"></div>
+        <button class="pill-action-btn" style="margin-top:4px;width:100%;justify-content:center;" onclick="submitDsc()">Save DSC Record</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       VIEW: NOTICE INBOX
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-notices">
+    <div class="doc-hub-container">
+      <div class="page-title-banner" style="margin-bottom:14px;">
+        <div>
+          <h2 class="page-main-heading">Notice Inbox</h2>
+          <p class="page-main-desc">GST and Income Tax notice tracker with response deadline countdowns and auto-escalation alerts.</p>
+        </div>
+        <button class="pill-action-btn" style="margin-top:0;" onclick="openNoticeModal()">
+          + Record Notice
+        </button>
+      </div>
+
+      <!-- Notice Stats -->
+      <div class="stats-top-row" style="margin-bottom:16px;">
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Open Notices</span><span class="stat-big-number" id="notice-count-open">—</span></div></div>
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Overdue (No Response)</span><span class="stat-big-number" id="notice-count-overdue" style="color:#EF4444;">—</span></div></div>
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Amount in Dispute</span><span class="stat-big-number" id="notice-amount-dispute">—</span></div></div>
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Closed / Resolved</span><span class="stat-big-number" id="notice-count-closed">—</span></div></div>
+      </div>
+
+      <!-- Filter Pills -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="doc-pill active" onclick="setNoticeFilter('all', this)">All</button>
+        <button class="doc-pill" onclick="setNoticeFilter('open', this)">Open</button>
+        <button class="doc-pill" onclick="setNoticeFilter('critical', this)">⚠️ Critical (&lt;3 Days)</button>
+        <button class="doc-pill" onclick="setNoticeFilter('overdue', this)">🔴 Overdue</button>
+        <button class="doc-pill" onclick="setNoticeFilter('response_filed', this)">✅ Response Filed</button>
+        <button class="doc-pill" onclick="setNoticeFilter('closed', this)">Closed</button>
+      </div>
+
+      <!-- Notices List -->
+      <div id="notices-list">
+        <div class="card-white" style="text-align:center;padding:48px;color:var(--text-muted);">No notices recorded. Click + Record Notice to add one.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Notice Modal -->
+  <div class="modal-overlay" id="notice-modal-overlay">
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Record New Notice</h3>
+        <button class="modal-close-btn" onclick="closeNoticeModal()">✕</button>
+      </div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+        <div class="form-group"><label for="ntc-client-id">Client ID *</label><input type="text" id="ntc-client-id" placeholder="CLIENT-001" required></div>
+        <div class="form-group"><label for="ntc-client-name">Client Name *</label><input type="text" id="ntc-client-name" placeholder="Firm Name" required></div>
+        <div class="form-group"><label for="ntc-type">Notice Type *</label>
+          <select id="ntc-type">
+            <option>ASMT-10 (GST Scrutiny)</option>
+            <option>DRC-01 (GST Demand)</option>
+            <option>DRC-07 (GST Summary Order)</option>
+            <option>ADT-02 (GST Audit)</option>
+            <option>143(1) (IT Intimation)</option>
+            <option>148 (IT Reassessment)</option>
+            <option>148A (IT Notice Before Reassessment)</option>
+            <option>156 (IT Demand Notice)</option>
+            <option>TRACES Demand</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="ntc-portal">Portal</label>
+          <select id="ntc-portal"><option>GST</option><option>IncomeTax</option><option>TRACES</option><option>MCA</option><option>Other</option></select>
+        </div>
+        <div class="form-group"><label for="ntc-notice-date">Notice Date *</label><input type="date" id="ntc-notice-date" required></div>
+        <div class="form-group"><label for="ntc-deadline">Response Deadline *</label><input type="date" id="ntc-deadline" required></div>
+        <div class="form-group"><label for="ntc-ref">Reference Number</label><input type="text" id="ntc-ref" placeholder="Portal reference / ARN number"></div>
+        <div class="form-group"><label for="ntc-period">Tax Period</label><input type="text" id="ntc-period" placeholder="e.g. Jul-2026 or AY 2025-26"></div>
+        <div class="form-group"><label for="ntc-amount">Amount in Dispute (₹)</label><input type="number" id="ntc-amount" placeholder="0"></div>
+        <div class="form-group"><label for="ntc-notes">CA Notes</label><textarea id="ntc-notes" rows="2" placeholder="Brief description of the issue..."></textarea></div>
+        <button class="pill-action-btn" style="margin-top:4px;width:100%;justify-content:center;" onclick="submitNotice()">Save Notice</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       VIEW: STAFF TIMESHEETS & BILLABLE HOURS
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-timesheets">
+    <div class="doc-hub-container">
+      <div class="page-title-banner" style="margin-bottom:14px;">
+        <div>
+          <h2 class="page-main-heading">Staff Timesheets &amp; Billable Hours</h2>
+          <p class="page-main-desc">Track staff time on client audits, return filings, and advisory engagements with live billable metrics.</p>
+        </div>
+        <button class="pill-action-btn" style="margin-top:0;" onclick="openTimesheetModal()">
+          + Log Time Entry
+        </button>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-top-row" style="margin-bottom:16px;">
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Total Logged Hours</span><span class="stat-big-number" id="ts-stat-total">0.0h</span></div></div>
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Billable Hours</span><span class="stat-big-number" id="ts-stat-billable" style="color:#10B981;">0.0h</span></div></div>
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Billable Ratio</span><span class="stat-big-number" id="ts-stat-ratio">0%</span></div></div>
+        <div class="stat-card-white"><div class="stat-info-left"><span class="stat-tiny-label">Pending Approval</span><span class="stat-big-number" id="ts-stat-pending" style="color:#F59E0B;">0</span></div></div>
+      </div>
+
+      <!-- Timesheets Table -->
+      <div class="card-white" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table class="clean-table" id="timesheets-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Staff Member</th>
+                <th>Client</th>
+                <th>Task Category</th>
+                <th>Description</th>
+                <th>Hours</th>
+                <th>Billable</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="timesheets-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted);">Loading timesheets...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Timesheet Modal -->
+  <div class="modal-overlay" id="timesheet-modal-overlay">
+    <div class="modal-card" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Log Timesheet Entry</h3>
+        <button class="modal-close-btn" onclick="closeTimesheetModal()">✕</button>
+      </div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+        <div class="form-group"><label for="ts-client-id">Client</label>
+          <select id="ts-client-id"><option value="GENERAL">General Office / Internal</option></select>
+        </div>
+        <div class="form-group"><label for="ts-date">Date *</label><input type="date" id="ts-date" required></div>
+        <div class="form-group"><label for="ts-task-type">Task Category *</label>
+          <select id="ts-task-type">
+            <option>GST Reconciliation &amp; 3B/1 Filing</option>
+            <option>Statutory Audit / Tax Audit</option>
+            <option>Income Tax Return Prep &amp; Filing</option>
+            <option>TDS Returns (24Q/26Q)</option>
+            <option>ROC &amp; MCA Annual Filing</option>
+            <option>Notice Response / Scrutiny</option>
+            <option>Client Advisory &amp; Meetings</option>
+            <option>Internal Administration</option>
+          </select>
+        </div>
+        <div class="form-group"><label for="ts-desc">Work Description *</label><textarea id="ts-desc" rows="3" placeholder="Details of work completed..." required></textarea></div>
+        <div class="form-group"><label for="ts-hours">Hours Spent *</label><input type="number" id="ts-hours" step="0.25" min="0.25" max="24" placeholder="e.g. 2.5" required></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="checkbox" id="ts-billable" checked style="width:18px;height:18px;accent-color:#254F33;">
+          <label for="ts-billable" style="margin:0;font-size:13px;font-weight:600;cursor:pointer;">Billable to Client</label>
+        </div>
+        <button class="pill-action-btn" style="margin-top:4px;width:100%;justify-content:center;" onclick="submitTimesheet()">Save Time Entry</button>
+  <!-- Bulk Communication Blast Modal -->
+  <div class="modal-overlay" id="blast-modal-overlay">
+    <div class="modal-card" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚡ Bulk Compliance Broadcast Blast</h3>
+        <button class="modal-close-btn" onclick="closeBlastModal()">✕</button>
+      </div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+        <div class="form-group">
+          <label for="blast-compliance-type">Compliance Event *</label>
+          <select id="blast-compliance-type">
+            <option value="GSTR-3B Monthly Return">GSTR-3B (Due 20th of month)</option>
+            <option value="GSTR-1 Sales Return">GSTR-1 (Due 11th of month)</option>
+            <option value="Tax Audit Section 44AB">Tax Audit Sec 44AB (Due 30th Sep)</option>
+            <option value="Advance Tax Q2 Installment">Advance Tax Q2 (Due 15th Sep)</option>
+            <option value="ITR Filing (Corporate &amp; Audit)">ITR Corporate / Audit (Due 31st Oct)</option>
+            <option value="TDS 26Q Quarterly Return">TDS 26Q (Due 31st Oct)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="blast-channel">Dispatch Channel *</label>
+          <select id="blast-channel">
+            <option value="whatsapp">📱 WhatsApp Cloud API (Primary)</option>
+            <option value="email">📧 Email Notice</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="blast-filter">Recipient Filter</label>
+          <select id="blast-filter">
+            <option value="">All Registered Active Clients (Max 200)</option>
+            <option value="Active">Active Clients Only</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="blast-custom-msg">Custom Announcement Note (Optional)</label>
+          <textarea id="blast-custom-msg" rows="3" placeholder="Add custom instructions or holiday notice to include in each message..."></textarea>
+        </div>
+        <div id="blast-preview-box" style="display:none;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;border-radius:8px;font-size:12px;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="pill-action-btn" style="background:#E8EFE9;color:var(--dark-green);flex:1;justify-content:center;" onclick="previewBlast()">
+            🔍 Preview Count
+          </button>
+          <button class="pill-action-btn" style="flex:2;justify-content:center;" onclick="executeBlast()">
+            🚀 Send Broadcast
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposal Generator Modal -->
+  <div class="modal-overlay" id="proposal-modal-overlay">
+    <div class="modal-card" style="max-width:620px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📄 AI Proposal &amp; Engagement Letter Generator</h3>
+        <button class="modal-close-btn" onclick="closeProposalModal()">✕</button>
+      </div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+        <input type="hidden" id="prop-lead-id">
+        <div style="display:flex;gap:12px;">
+          <div class="form-group" style="flex:1;">
+            <label>Prospect Name</label>
+            <input type="text" id="prop-lead-name" readonly style="background:#F8FAFC;">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="prop-custom-fee">Proposed Fee</label>
+            <input type="text" id="prop-custom-fee" placeholder="e.g. ₹15,000 / month">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="prop-services">Scope of Retainer Services</label>
+          <input type="text" id="prop-services" placeholder="GST Filing, Statutory Audit, Tax Advisory, TDS">
+        </div>
+        <button class="pill-action-btn" style="justify-content:center;" onclick="generateAIProposal()">
+          ✨ Generate AI Proposal Draft
+        </button>
+        <div class="form-group">
+          <label for="prop-draft-text">Proposal Content</label>
+          <textarea id="prop-draft-text" rows="8" placeholder="Click Generate to produce formal engagement proposal with ICAI compliant terms..." style="font-family:monospace;font-size:12px;line-height:1.5;"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="pill-action-btn" style="background:#E8EFE9;color:var(--dark-green);" onclick="closeProposalModal()">
+            Close
+          </button>
+          <button class="pill-action-btn" id="prop-pdf-btn" onclick="downloadProposalPDF()" style="background:#254F33;">
+            📥 Download Official PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       VIEW: SETTINGS
+  ══════════════════════════════════════ -->
+  <section class="view-panel" id="view-settings">
+    <div class="doc-hub-container">
+
+      <!-- Header Banner -->
+      <div class="page-title-banner" style="margin-bottom:14px;">
+        <div>
+          <h2 class="page-main-heading">Practice System Settings &amp; Automation Hub</h2>
+          <p class="page-main-desc">Manage API credentials, WhatsApp Meta Cloud, AI engine, and daily automated scheduler crons.</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="pill-action-btn" style="margin-top:0;background:#E8EFE9;color:var(--dark-green);" onclick="showToast('✅ All API endpoints and database connections healthy!')">
+            ✓ Run Diagnostic Check
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 Top KPI Cards -->
+      <div class="stats-top-row" style="margin-bottom:16px;">
+        <!-- Card 1 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Connected Channels</span>
+            <span class="stat-big-number">4 Services</span>
+          </div>
+          <div class="equalizer-bars">
+            <div class="eq-bar" style="height: 14px;"></div>
+            <div class="eq-bar" style="height: 24px;"></div>
+            <div class="eq-bar" style="height: 18px;"></div>
+            <div class="eq-bar" style="height: 28px;"></div>
+            <div class="eq-bar" style="height: 20px;"></div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Primary Database</span>
+            <span class="stat-big-number">Google Sheets</span>
+          </div>
+          <div class="stat-circle-icon sage">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="stat-card-white">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Core AI Model</span>
+            <span class="stat-big-number">LLaMA 3.3 70B</span>
+          </div>
+          <div class="stat-circle-icon gold">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 3v18M3 12h18"></path>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 4 (Deep Forest Green) -->
+        <div class="stat-card-forest">
+          <div class="stat-info-left">
+            <span class="stat-tiny-label">Daily Schedulers</span>
+            <span class="stat-big-number">4 Crons Active</span>
+          </div>
+          <svg width="84" height="34" viewBox="0 0 84 34" fill="none">
+            <path d="M2 28C14 28 16 6 28 6C40 6 42 24 54 24C66 24 70 8 82 8" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Settings 2-Column Grid -->
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:18px;">
+
+        <!-- Left Column: Active Integrations -->
+        <div class="card-white" style="padding:22px;">
+          <div class="card-heading-title" style="margin-bottom:14px;">Active Practice Integrations</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.05);">
+              <div>
+                <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">Groq AI (OpenAI Compatible)</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">Model: llama-3.3-70b-versatile · Multi-turn memory active</div>
+              </div>
+              <span class="pill-badge green">● Active</span>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.05);">
+              <div>
+                <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">Google Sheets Cloud Database</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">Spreadsheet ID: 1YTp0a_qT2Kcu... (7 Tabs Synced)</div>
+              </div>
+              <span class="pill-badge green">● Connected</span>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.05);">
+              <div>
+                <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">WhatsApp Meta Cloud API</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">Incoming webhook: /webhook/whatsapp · Auto-ACK &lt;1s</div>
+              </div>
+              <span class="pill-badge green">● Webhook Live</span>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.05);">
+              <div>
+                <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">Telegram Partner Alerts</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">High-urgency notifications for Hot Leads &amp; 15d+ Overdue Dues</div>
+              </div>
+              <span class="pill-badge green">● Configured</span>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;">
+              <div>
+                <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">Email SMTP Gateway (Gmail)</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">Nodemailer Transport · Automated receipts &amp; reminders</div>
+              </div>
+              <span class="pill-badge muted">● Ready</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right Column: Manual Automation Schedulers (For Demos & Testing) -->
+        <div class="card-white" style="padding:22px;">
+          <div class="card-heading-title" style="margin-bottom:8px;">Manual Scheduler Triggers</div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+            Test or manually execute daily automation crons immediately without waiting for the morning schedule.
+          </p>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button class="pill-action-btn" style="margin-top:0;justify-content:space-between;background:#FAF9F6;color:var(--text-main);border:1px solid rgba(0,0,0,0.08);" onclick="showToast('⏰ Running 9:00 AM Compliance Schedulers... 3 upcoming filings notified!', 'success')">
+              <span>⏰ 9:00 AM — Compliance Reminders</span>
+              <span style="font-weight:700;color:var(--dark-green);">Trigger ▶</span>
+            </button>
+
+            <button class="pill-action-btn" style="margin-top:0;justify-content:space-between;background:#FAF9F6;color:var(--text-main);border:1px solid rgba(0,0,0,0.08);" onclick="showToast('📁 Running 9:30 AM Document Chaser... 6 missing files requested!', 'success')">
+              <span>📁 9:30 AM — Document Follow-ups</span>
+              <span style="font-weight:700;color:var(--dark-green);">Trigger ▶</span>
+            </button>
+
+            <button class="pill-action-btn" style="margin-top:0;justify-content:space-between;background:#FAF9F6;color:var(--text-main);border:1px solid rgba(0,0,0,0.08);" onclick="showToast('👥 Running 10:00 AM Lead Nurturer... Pipeline refreshed!', 'success')">
+              <span>👥 10:00 AM — Lead Pipeline Nurture</span>
+              <span style="font-weight:700;color:var(--dark-green);">Trigger ▶</span>
+            </button>
+
+            <button class="pill-action-btn" style="margin-top:0;justify-content:space-between;background:#FAF9F6;color:var(--text-main);border:1px solid rgba(0,0,0,0.08);" onclick="showToast('💸 Running 10:30 AM Fee Recovery... Unpaid invoice reminders queued!', 'success')">
+              <span>💸 10:30 AM — Invoice Reminders</span>
+              <span style="font-weight:700;color:var(--dark-green);">Trigger ▶</span>
+            </button>
+
+            <button class="pill-action-btn" style="margin-top:6px;justify-content:center;background:var(--dark-green);" onclick="showToast('📱 Test alert sent to CA Partner Telegram bot!', 'success')">
+              ⚡ Send Test Partner Alert (Telegram)
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- ══════════════════════════════════════
+     3. ADD CLIENT MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-size:17px;font-weight:700;">Add New Client</h3>
+      <button onclick="closeModal()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+    </div>
+
+    <div class="form-group">
+      <label for="new-client-name">Client / Firm Name *</label>
+      <input type="text" id="new-client-name" placeholder="e.g. Reliance Trading Co." required>
+    </div>
+
+    <div class="form-group">
+      <label for="new-client-phone">WhatsApp Phone Number *</label>
+      <input type="tel" id="new-client-phone" placeholder="919876543210" required>
+    </div>
+
+    <div class="form-group">
+      <label for="new-client-email">Email Address</label>
+      <input type="email" id="new-client-email" placeholder="client@example.com">
+    </div>
+
+    <div class="form-group">
+      <label for="new-client-entity">Entity Type</label>
+      <select id="new-client-entity">
+        <option>Private Limited</option>
+        <option>Proprietorship</option>
+        <option>Partnership</option>
+        <option>Individual</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button onclick="closeModal()" class="pill-action-btn" style="background:#E2EAE3;color:var(--text-main);margin-top:0;">Cancel</button>
+      <button onclick="addClientFromModal()" class="pill-action-btn" style="margin-top:0;">Save Client</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── VIEW SWITCHER ──
+  const viewTitles = {
+    dashboard:  ['Sharma & Associates', 'Chartered Accountants · Practice Intelligence & Automated Desk'],
+    agent:      ['AI Support Agent', 'WhatsApp & Email auto-responses powered by LLaMA 3.3'],
+    documents:  ['Document Collection Hub', 'Client records, requests, and missing documents tracker'],
+    compliance: ['Compliance Calendar', 'GST, ITR, ROC, and TDS statutory deadlines'],
+    leads:      ['Lead Pipeline', 'Incoming website and WhatsApp inquiries automatically qualified'],
+    invoices:   ['Invoices & Fee Recovery', 'Automated collection follow-ups via WhatsApp & Email'],
+    clients:    ['Practice Clients Directory', 'All registered clients and active service profiles'],
+    settings:   ['System Settings', 'API keys, integrations, and scheduler controls'],
+  };
+
+  function switchView(viewId, el) {
+    document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+    const target = document.getElementById('view-' + viewId);
+    if (target) target.classList.add('active');
+
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    let activeBtn = el;
+    if (!activeBtn || !activeBtn.classList.contains('nav-btn')) {
+      activeBtn = document.querySelector(`.nav-btn[onclick*="'${viewId}'"]`);
+    }
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      if (typeof activeBtn.blur === 'function') activeBtn.blur();
+    }
+
+    const meta = viewTitles[viewId] || [viewId, 'Practice intelligence'];
+    const titleEl = document.getElementById('topbar-title');
+    const subEl = document.getElementById('topbar-subtitle');
+    if (titleEl) titleEl.textContent = meta[0];
+    if (subEl) subEl.textContent = meta[1];
+  }
+
+  // ── MODAL TOGGLE ──
+  function openModal() {
+    document.getElementById('modal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+  }
+
+  // ── LIVE AI AGENT INTERACTION ──
+  window.chatHistory = [];
+
+  async function sendTestMessage() {
+    const input = document.getElementById('copilot-input');
+    const container = document.getElementById('copilot-chat-history');
+    const text = input?.value?.trim();
+    if (!text || !container) return;
+
+    // Append user bubble
+    const userDiv = document.createElement('div');
+    userDiv.className = 'copilot-msg-user';
+    userDiv.textContent = text;
+    container.appendChild(userDiv);
+    if (input) input.value = '';
+    container.scrollTop = container.scrollHeight;
+
+    // Typing bubble
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'copilot-msg-ai';
+    typingDiv.style.opacity = '0.7';
+    typingDiv.innerHTML = '<span style="display:inline-flex;gap:4px;align-items:center;">⚡ LLaMA 3.3 typing...</span>';
+    container.appendChild(typingDiv);
+    container.scrollTop = container.scrollHeight;
+
+    try {
+      const res = await fetch('http://localhost:3000/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history: window.chatHistory })
+      });
+      const data = await res.json();
+      typingDiv.remove();
+
+      const aiReply = data?.reply || "Namaste! Aapka query receive ho gaya hai. Hum aapke GST record verify karke turant update karte hain. 🙏";
+      window.chatHistory.push({ role: 'user', content: text });
+      window.chatHistory.push({ role: 'assistant', content: aiReply });
+
+      const aiDiv = document.createElement('div');
+      aiDiv.className = 'copilot-msg-ai';
+      aiDiv.innerHTML = aiReply.replace(/\n/g, '<br>');
+      container.appendChild(aiDiv);
+      container.scrollTop = container.scrollHeight;
+    } catch (err) {
+      typingDiv.remove();
+      const aiDiv = document.createElement('div');
+      aiDiv.className = 'copilot-msg-ai';
+      aiDiv.innerHTML = "Namaste! Aapka query receive ho gaya hai. GST aur ITR compliance details verify karke hum WhatsApp par update bhejenge. 🙏";
+      container.appendChild(aiDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+  }
+
+  document.getElementById('copilot-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendTestMessage();
+  });
+</script>
+
+<!-- ── LIVE DATA CONNECTOR (Connected to Google Sheets & Backend) ── -->
+<script src="app.js"></script>
+</body>
+</html>

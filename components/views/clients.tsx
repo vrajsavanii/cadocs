@@ -1,0 +1,523 @@
+"use client";
+
+import * as React from "react";
+import { Building2, CalendarCheck2, FileSignature, Mail, MapPin, Pencil, Phone, Plus, ReceiptIndianRupee, Trash2, UserRound, Wallet } from "lucide-react";
+import type { Client, ClientDetail } from "@/lib/types";
+import { Avatar, Badge, Button, EmptyState, Field, PageHeader, StatusPill, TableShell, Td, Th } from "../ui";
+import { Modal, useToast } from "../interactive";
+import { FilterTabs, ReminderButton, SearchBox, SectionCard, useMutation } from "./shared";
+import { AiAssist } from "../ai-assist";
+import { compactInr, inr, prettyDate } from "@/lib/format";
+
+const ENTITY_TYPES = ["Private Limited", "LLP", "Proprietorship", "Partnership", "Trust", "HUF", "Individual", "Other"];
+
+const emptyForm = {
+  name: "",
+  contact_person: "",
+  phone: "",
+  email: "",
+  entity_type: "Private Limited",
+  gst_number: "",
+  pan: "",
+  services_opted: "GST Filing, ITR",
+  city: "Mumbai",
+  state: "Maharashtra",
+};
+
+export function ClientsView({ clients, firmName, focusClientId }: { clients: Client[]; firmName: string; focusClientId?: string }) {
+  const [query, setQuery] = React.useState("");
+  const [entity, setEntity] = React.useState("All");
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [detail, setDetail] = React.useState<ClientDetail | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [form, setForm] = React.useState(emptyForm);
+  const { busy, mutate } = useMutation();
+  const { toast } = useToast();
+
+  const filtered = React.useMemo(() => {
+    const q = query.toLowerCase().trim();
+    return clients.filter((c) => {
+      const matchesEntity = entity === "All" || c.entity_type === entity;
+      const matchesQuery =
+        !q ||
+        [c.name, c.contact_person, c.phone, c.email, c.gst_number, c.pan, c.city, c.services_opted]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      return matchesEntity && matchesQuery;
+    });
+  }, [clients, entity, query]);
+
+  React.useEffect(() => {
+    if (!focusClientId) return;
+    const match = clients.find((c) => c.client_id === focusClientId);
+    if (match) void openClient(match);
+    // Only react when the deep-linked client changes.
+  }, [focusClientId]);
+
+  const entityCounts = React.useMemo(() => {
+    const map = new Map<string, number>();
+    clients.forEach((c) => map.set(c.entity_type, (map.get(c.entity_type) ?? 0) + 1));
+    return map;
+  }, [clients]);
+
+  async function openClient(client: Client) {
+    setDetail(null);
+    setEditing(false);
+    setConfirmDelete(false);
+    setLoading(true);
+    setForm({
+      name: client.name,
+      contact_person: client.contact_person,
+      phone: client.phone,
+      email: client.email,
+      entity_type: client.entity_type,
+      gst_number: client.gst_number,
+      pan: client.pan,
+      services_opted: client.services_opted,
+      city: client.city,
+      state: client.state,
+    });
+    try {
+      const res = await fetch(`/api/clients/${client.client_id}`);
+      const data = (await res.json().catch(() => ({}))) as ClientDetail & { error?: string };
+      if (!res.ok) throw new Error(data.error || "Could not load the client");
+      setDetail(data);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not load the client", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshDetail(clientId: string) {
+    const res = await fetch(`/api/clients/${clientId}`);
+    if (!res.ok) return;
+    setDetail((await res.json()) as ClientDetail);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const created = await mutate<Client>("/api/clients", "POST", form, `${form.name} onboarded`);
+    if (created) {
+      setAddOpen(false);
+      setForm(emptyForm);
+    }
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!detail) return;
+    const updated = await mutate<Client>(`/api/clients/${detail.client.client_id}`, "PATCH", form, "Client profile updated");
+    if (updated) {
+      setEditing(false);
+      await refreshDetail(detail.client.client_id);
+    }
+  }
+
+  async function remove() {
+    if (!detail) return;
+    const id = detail.client.client_id;
+    const result = await mutate(`/api/clients/${id}`, "DELETE", undefined, "Client removed");
+    if (result) {
+      setConfirmDelete(false);
+      setDetail(null);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Client desk"
+        title="Practice clients"
+        description="Every engagement, KYC detail and service line in one searchable directory."
+      >
+        <a
+          href="/api/export?type=clients"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-ink transition hover:bg-subtle"
+        >
+          Export CSV
+        </a>
+        <Button onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
+          <Plus className="h-4 w-4" /> Onboard client
+        </Button>
+      </PageHeader>
+
+      <SectionCard
+        title={`${filtered.length} of ${clients.length} clients`}
+        subtitle="Search by name, GSTIN, PAN, city or service line — open a client for the full 360° view"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterTabs
+              options={[
+                { value: "All", label: "All", count: clients.length },
+                ...Array.from(entityCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
+              ]}
+              value={entity}
+              onChange={setEntity}
+            />
+            <SearchBox value={query} onChange={setQuery} placeholder="Search clients…" className="w-full sm:w-56" />
+          </div>
+        }
+      >
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={<UserRound className="h-5 w-5" />}
+            title="No clients match that search"
+            description="Try a different name, GSTIN or clear the filters."
+            action={<Button variant="secondary" onClick={() => { setQuery(""); setEntity("All"); }}>Clear filters</Button>}
+          />
+        ) : (
+          <TableShell>
+            <table className="w-full min-w-[860px]">
+              <thead>
+                <tr className="bg-subtle/60">
+                  <Th>Client</Th>
+                  <Th>Contact</Th>
+                  <Th>GSTIN / PAN</Th>
+                  <Th>Services</Th>
+                  <Th>Location</Th>
+                  <Th className="text-right">Action</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => (
+                  <tr key={c.client_id} className="border-t border-black/5 transition hover:bg-subtle/50">
+                    <Td>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={c.name} />
+                        <div>
+                          <p className="text-sm font-semibold text-ink">{c.name}</p>
+                          <p className="text-[11px] text-muted">{c.client_id} · {c.entity_type}</p>
+                        </div>
+                      </div>
+                    </Td>
+                    <Td>
+                      <p className="text-xs font-semibold text-ink">{c.contact_person}</p>
+                      <p className="text-[11px] text-muted">{c.phone}</p>
+                    </Td>
+                    <Td>
+                      <p className="font-mono text-[11px] text-ink">{c.gst_number || "—"}</p>
+                      <p className="font-mono text-[10px] text-muted">{c.pan || "—"}</p>
+                    </Td>
+                    <Td>
+                      <div className="flex max-w-[220px] flex-wrap gap-1">
+                        {c.services_opted.split(",").slice(0, 2).map((s) => (
+                          <Badge key={s} tone="sage">{s.trim()}</Badge>
+                        ))}
+                        {c.services_opted.split(",").length > 2 ? <Badge tone="neutral">+{c.services_opted.split(",").length - 2}</Badge> : null}
+                      </div>
+                    </Td>
+                    <Td>
+                      {c.city || c.state ? (
+                        <>
+                          <p className="text-xs text-ink">{c.city || "—"}</p>
+                          <p className="text-[11px] text-muted">{c.state || "—"}</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted">Not captured</p>
+                      )}
+                    </Td>
+                    <Td className="text-right">
+                      <Button size="sm" variant="secondary" onClick={() => openClient(c)}>Open 360°</Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableShell>
+        )}
+      </SectionCard>
+
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Onboard a client" description="Creates the client master record. Compliance tasks can be added from the calendar.">
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Client / firm name" className="sm:col-span-2">
+              <input required className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Sharma Textiles Pvt Ltd" />
+            </Field>
+            <Field label="Contact person">
+              <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} placeholder="Rahul Sharma" />
+            </Field>
+            <Field label="WhatsApp / phone">
+              <input required className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="9820011223" />
+            </Field>
+            <Field label="Email">
+              <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="accounts@client.in" />
+            </Field>
+            <Field label="Entity type">
+              <select className="input" value={form.entity_type} onChange={(e) => setForm({ ...form, entity_type: e.target.value })}>
+                {ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="GSTIN">
+              <input className="input font-mono" value={form.gst_number} onChange={(e) => setForm({ ...form, gst_number: e.target.value.toUpperCase() })} placeholder="27AABCS1234A1Z5" />
+            </Field>
+            <Field label="PAN">
+              <input className="input font-mono" value={form.pan} onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })} placeholder="AABCS1234A" />
+            </Field>
+            <Field label="City">
+              <input className="input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            </Field>
+            <Field label="State">
+              <input className="input" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+            </Field>
+            <Field label="Services opted" className="sm:col-span-2">
+              <input className="input" value={form.services_opted} onChange={(e) => setForm({ ...form, services_opted: e.target.value })} placeholder="GST Filing, Tax Audit, ITR" />
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={busy}>Save client</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(detail) || loading}
+        onClose={() => { setDetail(null); setEditing(false); setConfirmDelete(false); }}
+        title={detail?.client.name ?? "Client 360°"}
+        description={detail ? `${detail.client.client_id} · ${detail.client.entity_type} · client since ${prettyDate(detail.client.created_at)}` : "Loading client record…"}
+        wide
+      >
+        {loading ? <p className="py-8 text-center text-xs text-muted">Loading client record…</p> : null}
+        {detail ? (
+          <div className="space-y-4">
+            {editing ? (
+              <form onSubmit={saveEdit} className="space-y-3 rounded-2xl border border-black/5 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Client / firm name" className="sm:col-span-2">
+                    <input required className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </Field>
+                  <Field label="Contact person">
+                    <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} />
+                  </Field>
+                  <Field label="WhatsApp / phone">
+                    <input required className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                  </Field>
+                  <Field label="Email">
+                    <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  </Field>
+                  <Field label="Entity type">
+                    <select className="input" value={form.entity_type} onChange={(e) => setForm({ ...form, entity_type: e.target.value })}>
+                      {ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="GSTIN">
+                    <input className="input font-mono" value={form.gst_number} onChange={(e) => setForm({ ...form, gst_number: e.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="PAN">
+                    <input className="input font-mono" value={form.pan} onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="City">
+                    <input className="input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                  </Field>
+                  <Field label="State">
+                    <input className="input" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+                  </Field>
+                  <Field label="Services opted" className="sm:col-span-2">
+                    <input className="input" value={form.services_opted} onChange={(e) => setForm({ ...form, services_opted: e.target.value })} />
+                  </Field>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+                  <Button type="submit" loading={busy}>Save changes</Button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StatusPill status="Active" />
+                    {detail.client.services_opted.split(",").slice(0, 4).map((s) => <Badge key={s} tone="sage">{s.trim()}</Badge>)}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <AiAssist task="client_summary" id={detail.client.client_id} label="AI summary" title={`${detail.client.name} — relationship brief`} />
+                    <ReminderButton
+                      recipient={detail.client.contact_person || detail.client.name}
+                      phone={detail.client.phone}
+                      email={detail.client.email}
+                      subject={`${firmName} — update on your account`}
+                      relatedType="client"
+                      relatedId={detail.client.client_id}
+                      variant="secondary"
+                      message={`Dear ${detail.client.contact_person || detail.client.name},\n\nA quick update from ${firmName} on your compliance account.\n\nOutstanding fees: ${inr(detail.totals.outstanding)}\nOpen filings: ${detail.compliance.filter((c) => c.status !== "Filed").length}\nPending documents: ${detail.documents.filter((d) => d.status === "Pending").length}\n\nPlease let us know if you need anything.\n\nRegards,\n${firmName}`}
+                    />
+                    <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </Button>
+                    {confirmDelete ? (
+                      <Button variant="danger" size="sm" onClick={remove} loading={busy}>Confirm delete</Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {confirmDelete ? (
+                  <p className="rounded-xl bg-[#FBEAE7] px-3 py-2 text-[10px] leading-relaxed text-[#A33B2E]">
+                    Deleting is only allowed when the client has no compliance tasks, documents or invoices. Remove or reassign those first.
+                  </p>
+                ) : null}
+
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                  <Money label="Billed" value={compactInr(detail.totals.billed)} />
+                  <Money label="Collected" value={compactInr(detail.totals.collected)} tone="green" />
+                  <Money label="Outstanding" value={compactInr(detail.totals.outstanding)} tone="gold" />
+                  <Money label="Overdue" value={compactInr(detail.totals.overdue)} tone="rose" />
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Detail icon={<UserRound className="h-3.5 w-3.5" />} label="Contact person" value={detail.client.contact_person || "—"} />
+                  <Detail icon={<Phone className="h-3.5 w-3.5" />} label="Phone" value={detail.client.phone} />
+                  <Detail icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={detail.client.email || "—"} />
+                  <Detail icon={<MapPin className="h-3.5 w-3.5" />} label="Location" value={[detail.client.city, detail.client.state].filter(Boolean).join(", ") || "Not captured"} />
+                  <Detail icon={<Building2 className="h-3.5 w-3.5" />} label="GSTIN" value={detail.client.gst_number || "—"} mono />
+                  <Detail icon={<Building2 className="h-3.5 w-3.5" />} label="PAN" value={detail.client.pan || "—"} mono />
+                </div>
+              </>
+            )}
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Panel
+                title="Compliance"
+                icon={<CalendarCheck2 className="h-3.5 w-3.5" />}
+                count={detail.compliance.length}
+                empty="No compliance tasks yet."
+              >
+                {detail.compliance.slice(0, 6).map((c) => (
+                  <Row
+                    key={c.compliance_id}
+                    title={c.compliance_type}
+                    subtitle={`${c.period} · due ${prettyDate(c.due_date)}`}
+                    right={<StatusPill status={c.status} />}
+                  />
+                ))}
+              </Panel>
+
+              <Panel
+                title="Documents"
+                icon={<FileSignature className="h-3.5 w-3.5" />}
+                count={detail.documents.length}
+                empty="No document requests yet."
+              >
+                {detail.documents.slice(0, 6).map((d) => (
+                  <Row
+                    key={d.doc_id}
+                    title={d.document_name}
+                    subtitle={`Requested ${prettyDate(d.requested_date)}${d.file_name ? ` · ${d.file_name}` : ""}`}
+                    right={<StatusPill status={d.status} />}
+                  />
+                ))}
+              </Panel>
+
+              <Panel
+                title="Invoices"
+                icon={<ReceiptIndianRupee className="h-3.5 w-3.5" />}
+                count={detail.invoices.length}
+                empty="No invoices raised yet."
+              >
+                {detail.invoices.slice(0, 6).map((i) => (
+                  <Row
+                    key={i.invoice_id}
+                    title={`${i.invoice_id} · ${inr(i.total_amount)}`}
+                    subtitle={`${i.service_description} · due ${prettyDate(i.due_date)}`}
+                    right={<StatusPill status={i.status} />}
+                  />
+                ))}
+              </Panel>
+
+              <Panel
+                title="Proposals & communication"
+                icon={<FileSignature className="h-3.5 w-3.5" />}
+                count={detail.proposals.length + detail.messages.length}
+                empty="No proposals or reminders logged yet."
+              >
+                {detail.proposals.slice(0, 3).map((p) => (
+                  <Row
+                    key={p.proposal_id}
+                    title={`${p.fee} · ${p.services.split(",")[0]?.trim() || "Engagement"}`}
+                    subtitle={`Proposal ${p.proposal_id} · ${prettyDate(p.created_at)}`}
+                    right={<StatusPill status={p.status} />}
+                  />
+                ))}
+                {detail.messages.slice(0, 4).map((m) => (
+                  <Row
+                    key={m.message_id}
+                    title={`${m.channel} reminder`}
+                    subtitle={`${m.subject || m.body.slice(0, 46)} · ${prettyDate(m.created_at)}`}
+                    right={<Badge tone="blue">Logged</Badge>}
+                  />
+                ))}
+              </Panel>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <a
+                href={`/api/export?type=invoices`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle"
+              >
+                <Wallet className="h-3.5 w-3.5" /> Export invoices
+              </a>
+              <Button variant="secondary" size="sm" onClick={() => window.open(`tel:${detail.client.phone}`)}>
+                <Phone className="h-3.5 w-3.5" /> Call
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  );
+}
+
+function Panel({ title, icon, count, empty, children }: { title: string; icon: React.ReactNode; count: number; empty: string; children: React.ReactNode }) {
+  const items = React.Children.toArray(children);
+  return (
+    <div className="rounded-2xl border border-black/5 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted">{icon}{title}</p>
+        <Badge tone={count ? "sage" : "neutral"}>{count}</Badge>
+      </div>
+      {items.length === 0 ? <p className="py-3 text-[11px] text-muted">{empty}</p> : <div>{items}</div>}
+    </div>
+  );
+}
+
+function Row({ title, subtitle, right }: { title: string; subtitle: string; right: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-black/5 py-2 last:border-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-semibold text-ink">{title}</p>
+        <p className="truncate text-[10px] text-muted">{subtitle}</p>
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function Money({ label, value, tone = "sage" }: { label: string; value: string; tone?: "sage" | "green" | "gold" | "rose" }) {
+  const tones = {
+    sage: "bg-subtle text-ink",
+    green: "bg-sage text-sage-ink",
+    gold: "bg-gold-soft text-gold",
+    rose: "bg-[#FBEAE7] text-[#A33B2E]",
+  };
+  return (
+    <div className={`rounded-2xl px-3 py-2 ${tones[tone]}`}>
+      <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">{label}</p>
+      <p className="mt-0.5 text-sm font-extrabold">{value}</p>
+    </div>
+  );
+}
+
+function Detail({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-black/5 p-3">
+      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted">{icon}{label}</p>
+      <p className={`mt-1 text-xs font-semibold text-ink ${mono ? "font-mono" : ""}`}>{value}</p>
+    </div>
+  );
+}

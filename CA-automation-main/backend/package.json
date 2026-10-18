@@ -1,0 +1,39 @@
+{
+  "name": "ca-firm-automation-suite",
+  "version": "1.0.0",
+  "description": "AI-powered practice management for Indian CA firms",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "setup": "node setup-sheets.js",
+    "seed": "node seed-10-clients.js",
+    "seed:full": "node seed-50-clients.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@google/generative-ai": "^0.19.0",
+    "axios": "^1.6.2",
+    "bcryptjs": "^3.0.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "googleapis": "^128.0.0",
+    "groq-sdk": "^0.3.2",
+    "joi": "^18.2.9",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7",
+    "pdfkit": "^0.20.2",
+    "razorpay": "^2.9.8",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
