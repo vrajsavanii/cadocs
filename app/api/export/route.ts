@@ -1,4 +1,4 @@
-import { listClients, listCompliance, listDocuments, listInvoices, listLeads, listPayments, listTimesheets } from "@/lib/db";
+import { listClients, listCompliance, listDocuments, listInvoices, listPayments, listTimesheets } from "@/lib/db";
 import { fail, handle } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -37,9 +37,6 @@ export function GET(req: Request) {
     } else if (type === "timesheets") {
       headers = ["Entry", "Staff", "Client", "Date", "Task", "Description", "Hours", "Billable", "Status"];
       rows = listTimesheets().map((t) => [t.timesheet_id, t.user_name, t.client_name, t.date, t.task_type, t.description, t.hours, t.billable ? "Yes" : "No", t.status]);
-    } else if (type === "leads") {
-      headers = ["Lead", "Name", "Company", "Phone", "Email", "Source", "Interest", "Score", "Category", "Stage", "Notes"];
-      rows = listLeads().map((l) => [l.lead_id, l.name, l.company_name, l.phone, l.email, l.source, l.service_interest, l.lead_score, l.category, l.status, l.notes]);
     } else {
       return fail("Unknown export type", 400);
     }

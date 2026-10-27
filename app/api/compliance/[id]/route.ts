@@ -9,6 +9,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const { id } = await ctx.params;
     const body = await readBody(req);
     const status = pick<Compliance["status"]>(body.status, ["Pending", "In Progress", "Filed", "Overdue"], "Status");
+    if (status === "Filed") {
+      return fail(
+        "Filings now close through the Engagements workflow — that records the stage trail, partner sign-off, acknowledgement and auto-invoice. Open the filing from Workflow.",
+        409,
+      );
+    }
     const updated = updateComplianceStatus(id, status);
     if (!updated) return fail("Compliance task not found", 404);
     return ok(updated);

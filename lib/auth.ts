@@ -32,6 +32,11 @@ export function isPublicPath(pathname: string): boolean {
   // Public product site and its lead capture (rate limited inside the route).
   if (pathname === "/site" || pathname.startsWith("/site/")) return true;
   if (pathname === "/api/public/demo-request") return true;
+  // Scheduled sweeps carry no browser session: Vercel Cron (or an operator)
+  // calls them with CRON_SECRET, which each /api/cron/* handler verifies
+  // itself before doing any work. Requiring a session here would silently
+  // kill every background job.
+  if (pathname.startsWith("/api/cron/")) return true;
   // Build assets, source maps, favicons — not application surfaces.
   if (pathname.startsWith("/_next")) return true;
   if (/\.[a-z0-9]{1,5}$/i.test(pathname)) return true;
@@ -58,7 +63,13 @@ export function canAccess(role: string, method: string, pathname: string): boole
   }
 
   if (role === "article") {
-    return /^\/api\/(timesheets|messages)/.test(pathname);
+    // Articles may move their assigned work through the workflow; the workflow
+    // route itself enforces which transitions and actions their role allows.
+    // Engagement records are PATCH-only for them: generation controls
+    // (preview/generate/runs) and deletions are manager+, in depth alongside
+    // the checks inside those handlers.
+    if (/^\/api\/engagements(\/|$)/.test(pathname)) return method === "PATCH";
+    return /^\/api\/(timesheets|messages|workflow)(\/|$)/.test(pathname);
   }
 
   return false;
@@ -84,4 +95,16 @@ export async function getSessionUser(): Promise<AuthUser | null> {
 /** Same check for route handlers; returns the user or null. */
 export async function userFromRequest(): Promise<AuthUser | null> {
   return getSessionUser();
+}
+
+export function isPartner(user: AuthUser | null): user is AuthUser & { role: "partner" } {
+  return user?.role === "partner";
+}
+
+export function isManager(user: AuthUser | null): user is AuthUser & { role: "manager" } {
+  return user?.role === "manager";
+}
+
+export function roleLabel(role: Role): string {
+  return role === "partner" ? "Partner" : role === "manager" ? "Manager" : "Article assistant";
 }

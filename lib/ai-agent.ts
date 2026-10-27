@@ -477,20 +477,6 @@ async function deterministicRun(user: AuthUser, message: string): Promise<Fallba
     };
   }
 
-  if (/lead|pipeline|propos|prospect/.test(q)) {
-    const pipeline = doRead("pipeline_summary");
-    const data = pipeline?.data as { stages?: Record<string, number>; hot_leads?: Array<{ name: string; company: string; status: string; score: number }>; proposals_sent?: number } | undefined;
-    return {
-      reply: [
-        `**Pipeline:** ${Object.entries(data?.stages ?? {}).map(([k, v]) => `${k} ${v}`).join(" · ")}`,
-        `Proposals sent: ${data?.proposals_sent ?? 0}`,
-        ...(data?.hot_leads ?? []).map((l) => `• ${l.name} (${l.company || "—"}) — ${l.status}, score ${l.score}`),
-      ].join("\n"),
-      steps,
-      proposal: null,
-    };
-  }
-
   const clientQuery =
     q.match(/(?:about|summar(?:y|ise|ize)|for)\s+(.+)$/)?.[1]?.trim() ??
     q.match(/client\s+(.+)$/)?.[1]?.trim();

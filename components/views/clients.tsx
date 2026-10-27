@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Building2, CalendarCheck2, FileSignature, Mail, MapPin, Pencil, Phone, Plus, ReceiptIndianRupee, Trash2, UserRound, Wallet } from "lucide-react";
 import type { Client, ClientDetail } from "@/lib/types";
+import { OnboardWizard } from "./onboard-wizard";
+import { ClientProfileExtras } from "./client-profile-extras";
 import { Avatar, Badge, Button, EmptyState, Field, PageHeader, StatusPill, TableShell, Td, Th } from "../ui";
 import { Modal, useToast } from "../interactive";
 import { FilterTabs, ReminderButton, SearchBox, SectionCard, useMutation } from "./shared";
@@ -13,18 +16,40 @@ const ENTITY_TYPES = ["Private Limited", "LLP", "Proprietorship", "Partnership",
 
 const emptyForm = {
   name: "",
+  legal_name: "",
+  trade_name: "",
   contact_person: "",
   phone: "",
   email: "",
   entity_type: "Private Limited",
   gst_number: "",
+  gst_registration_type: "Regular",
   pan: "",
+  tan: "",
+  cin: "",
+  date_of_incorporation: "",
+  address: "",
+  pincode: "",
   services_opted: "GST Filing, ITR",
   city: "Mumbai",
   state: "Maharashtra",
+  notes: "",
+  relationship_manager: "",
+  whatsapp_opt_in: true,
+  client_status: "Active" as Client["client_status"],
 };
 
-export function ClientsView({ clients, firmName, focusClientId }: { clients: Client[]; firmName: string; focusClientId?: string }) {
+export function ClientsView({
+  clients,
+  firmName,
+  focusClientId,
+  staff,
+}: {
+  clients: Client[];
+  firmName: string;
+  focusClientId?: string;
+  staff: Array<{ name: string; role: string }>;
+}) {
   const [query, setQuery] = React.useState("");
   const [entity, setEntity] = React.useState("All");
   const [addOpen, setAddOpen] = React.useState(false);
@@ -35,6 +60,7 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
   const [form, setForm] = React.useState(emptyForm);
   const { busy, mutate } = useMutation();
   const { toast } = useToast();
+  const router = useRouter();
 
   const filtered = React.useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -70,15 +96,27 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
     setLoading(true);
     setForm({
       name: client.name,
+      legal_name: client.legal_name ?? client.name,
+      trade_name: client.trade_name ?? "",
       contact_person: client.contact_person,
       phone: client.phone,
       email: client.email,
       entity_type: client.entity_type,
       gst_number: client.gst_number,
+      gst_registration_type: client.gst_registration_type ?? (client.gst_number ? "Regular" : "Unregistered"),
       pan: client.pan,
+      tan: client.tan ?? "",
+      cin: client.cin ?? "",
+      date_of_incorporation: client.date_of_incorporation ?? "",
+      address: client.address ?? "",
+      pincode: client.pincode ?? "",
       services_opted: client.services_opted,
       city: client.city,
       state: client.state,
+      notes: client.notes ?? "",
+      relationship_manager: client.relationship_manager ?? "",
+      whatsapp_opt_in: client.whatsapp_opt_in ?? true,
+      client_status: client.client_status ?? "Active",
     });
     try {
       const res = await fetch(`/api/clients/${client.client_id}`);
@@ -96,15 +134,6 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
     const res = await fetch(`/api/clients/${clientId}`);
     if (!res.ok) return;
     setDetail((await res.json()) as ClientDetail);
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const created = await mutate<Client>("/api/clients", "POST", form, `${form.name} onboarded`);
-    if (created) {
-      setAddOpen(false);
-      setForm(emptyForm);
-    }
   }
 
   async function saveEdit(e: React.FormEvent) {
@@ -231,48 +260,17 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
         )}
       </SectionCard>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Onboard a client" description="Creates the client master record. Compliance tasks can be added from the calendar.">
-        <form onSubmit={submit} className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Client / firm name" className="sm:col-span-2">
-              <input required className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Sharma Textiles Pvt Ltd" />
-            </Field>
-            <Field label="Contact person">
-              <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} placeholder="Rahul Sharma" />
-            </Field>
-            <Field label="WhatsApp / phone">
-              <input required className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="9820011223" />
-            </Field>
-            <Field label="Email">
-              <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="accounts@client.in" />
-            </Field>
-            <Field label="Entity type">
-              <select className="input" value={form.entity_type} onChange={(e) => setForm({ ...form, entity_type: e.target.value })}>
-                {ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="GSTIN">
-              <input className="input font-mono" value={form.gst_number} onChange={(e) => setForm({ ...form, gst_number: e.target.value.toUpperCase() })} placeholder="27AABCS1234A1Z5" />
-            </Field>
-            <Field label="PAN">
-              <input className="input font-mono" value={form.pan} onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })} placeholder="AABCS1234A" />
-            </Field>
-            <Field label="City">
-              <input className="input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            </Field>
-            <Field label="State">
-              <input className="input" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
-            </Field>
-            <Field label="Services opted" className="sm:col-span-2">
-              <input className="input" value={form.services_opted} onChange={(e) => setForm({ ...form, services_opted: e.target.value })} placeholder="GST Filing, Tax Audit, ITR" />
-            </Field>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={busy}>Save client</Button>
-          </div>
-        </form>
-      </Modal>
+      <OnboardWizard
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        staff={staff}
+        clients={clients}
+        onCreated={(client) => {
+          setAddOpen(false);
+          router.refresh();
+          void openClient(client);
+        }}
+      />
 
       <Modal
         open={Boolean(detail) || loading}
@@ -289,6 +287,15 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Client / firm name" className="sm:col-span-2">
                     <input required className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </Field>
+                  <Field label="Trade name">
+                    <input className="input" value={form.trade_name} onChange={(e) => setForm({ ...form, trade_name: e.target.value })} />
+                  </Field>
+                  <Field label="Relationship manager">
+                    <select className="input" value={form.relationship_manager} onChange={(e) => setForm({ ...form, relationship_manager: e.target.value })}>
+                      <option value="">Not assigned</option>
+                      {staff.map((person) => <option key={person.name} value={person.name}>{person.name}</option>)}
+                    </select>
                   </Field>
                   <Field label="Contact person">
                     <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} />
@@ -310,14 +317,46 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
                   <Field label="PAN">
                     <input className="input font-mono" value={form.pan} onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })} />
                   </Field>
+                  <Field label="TAN">
+                    <input className="input font-mono" value={form.tan} onChange={(e) => setForm({ ...form, tan: e.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="CIN / LLPIN">
+                    <input className="input font-mono" value={form.cin} onChange={(e) => setForm({ ...form, cin: e.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="GST registration">
+                    <select className="input" value={form.gst_registration_type} onChange={(e) => setForm({ ...form, gst_registration_type: e.target.value })}>
+                      {["Regular", "Composition", "Unregistered"].map((type) => <option key={type}>{type}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Incorporation / DOB">
+                    <input type="date" className="input" value={form.date_of_incorporation} onChange={(e) => setForm({ ...form, date_of_incorporation: e.target.value })} />
+                  </Field>
+                  <Field label="Registered address" className="sm:col-span-2">
+                    <textarea className="input min-h-[60px]" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                  </Field>
                   <Field label="City">
                     <input className="input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
                   </Field>
                   <Field label="State">
                     <input className="input" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
                   </Field>
+                  <Field label="Pincode">
+                    <input className="input" value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })} />
+                  </Field>
+                  <Field label="Client status">
+                    <select className="input" value={form.client_status} onChange={(e) => setForm({ ...form, client_status: e.target.value as Client["client_status"] })}>
+                      {["Active", "Paused", "Exited"].map((status) => <option key={status}>{status}</option>)}
+                    </select>
+                  </Field>
                   <Field label="Services opted" className="sm:col-span-2">
                     <input className="input" value={form.services_opted} onChange={(e) => setForm({ ...form, services_opted: e.target.value })} />
+                  </Field>
+                  <label className="flex items-center gap-2 rounded-xl bg-subtle px-3 py-2 text-[11px] font-semibold text-ink sm:col-span-2">
+                    <input type="checkbox" checked={form.whatsapp_opt_in} onChange={(e) => setForm({ ...form, whatsapp_opt_in: e.target.checked })} className="h-3.5 w-3.5 accent-[#3B5244]" />
+                    Client consents to WhatsApp document requests and invoice messages
+                  </label>
+                  <Field label="Notes" className="sm:col-span-2">
+                    <textarea className="input min-h-[60px]" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                   </Field>
                 </div>
                 <div className="flex justify-end gap-2">
@@ -329,8 +368,9 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <StatusPill status="Active" />
-                    {detail.client.services_opted.split(",").slice(0, 4).map((s) => <Badge key={s} tone="sage">{s.trim()}</Badge>)}
+                    <StatusPill status={detail.client.client_status ?? "Active"} />
+                    {(detail.services ?? []).slice(0, 4).map((service) => <Badge key={service.service_id} tone="sage">{service.service_name}</Badge>)}
+                    {detail.client.whatsapp_opt_in ? <Badge tone="green">WhatsApp opted in</Badge> : <Badge tone="amber">WhatsApp off</Badge>}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <AiAssist task="client_summary" id={detail.client.client_id} label="AI summary" title={`${detail.client.name} — relationship brief`} />
@@ -377,7 +417,13 @@ export function ClientsView({ clients, firmName, focusClientId }: { clients: Cli
                   <Detail icon={<MapPin className="h-3.5 w-3.5" />} label="Location" value={[detail.client.city, detail.client.state].filter(Boolean).join(", ") || "Not captured"} />
                   <Detail icon={<Building2 className="h-3.5 w-3.5" />} label="GSTIN" value={detail.client.gst_number || "—"} mono />
                   <Detail icon={<Building2 className="h-3.5 w-3.5" />} label="PAN" value={detail.client.pan || "—"} mono />
+                  <Detail icon={<Building2 className="h-3.5 w-3.5" />} label="TAN" value={detail.client.tan || "—"} mono />
+                  <Detail icon={<Building2 className="h-3.5 w-3.5" />} label="CIN / LLPIN" value={detail.client.cin || "—"} mono />
+                  <Detail icon={<MapPin className="h-3.5 w-3.5" />} label="Registered address" value={[detail.client.address, detail.client.pincode].filter(Boolean).join(" — ") || "Not captured"} />
+                  <Detail icon={<UserRound className="h-3.5 w-3.5" />} label="Relationship manager" value={detail.client.relationship_manager || "Not assigned"} />
                 </div>
+
+                <ClientProfileExtras detail={detail} staff={staff} onRefresh={() => void refreshDetail(detail.client.client_id)} />
               </>
             )}
 

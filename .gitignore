@@ -2,6 +2,7 @@ node_modules/
 .next/
 out/
 .data/
+.backups/
 *.tsbuildinfo
 next-env.d.ts
 .env
@@ -13,3 +14,4 @@ next-env.d.ts
 .vercel
 .env*
 deploy-credentials.local.md
+.freebuff/

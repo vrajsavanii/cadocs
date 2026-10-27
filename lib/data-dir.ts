@@ -1,21 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getConfig } from "./config";
 
 /**
  * The one writable directory for runtime state: the SQLite database, the
  * session/encryption keys and uploaded documents.
  *
- * Locally that is `.data/` beside the project, which survives restarts.
- * Serverless hosts (Vercel) ship the deployment bundle read-only, so there the
- * only writable path is the instance's `/tmp` — state there is ephemeral and
- * not shared between instances, which is fine for a demo but means a real
- * deployment should set CA_DATA_DIR to a mounted volume.
+ * The location is governed by lib/config.ts — on serverless hosts a persistent
+ * CA_DATA_DIR is mandatory unless the install is explicitly a demo
+ * (CA_ALLOW_EPHEMERAL=1); misconfiguration fails at startup rather than quietly
+ * writing client records to an ephemeral path.
  */
 export function dataDir(): string {
-  const configured = process.env.CA_DATA_DIR?.trim();
-  if (configured) return path.resolve(configured);
-  if (process.env.VERCEL) return path.join("/tmp", "ca-suite");
-  return path.join(process.cwd(), ".data");
+  return getConfig().dataDir;
 }
 
 /** Absolute path inside the data directory, e.g. dataPath("uploads"). */

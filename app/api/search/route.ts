@@ -1,4 +1,4 @@
-import { listClients, listCompliance, listDocuments, listInvoices, listLeads, listNotices } from "@/lib/db";
+import { listClients, listCompliance, listDocuments, listInvoices, listNotices } from "@/lib/db";
 import { handle, ok } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +13,6 @@ export function GET(req: Request) {
       .filter((c) => has(c.name) || has(c.phone) || has(c.email) || has(c.gst_number) || has(c.pan))
       .slice(0, 5)
       .map((c) => ({ id: c.client_id, label: c.name, sublabel: `${c.entity_type} · ${c.city || "No city"}`, href: `/clients?client=${c.client_id}` }));
-
-    const leads = listLeads()
-      .filter((l) => has(l.name) || has(l.company_name) || has(l.phone))
-      .slice(0, 4)
-      .map((l) => ({ id: l.lead_id, label: l.name, sublabel: `${l.company_name || "Lead"} · ${l.status}`, href: "/leads" }));
 
     const invoices = listInvoices()
       .filter((i) => has(i.invoice_id) || has(i.client_name) || has(i.service_description))
@@ -42,7 +37,6 @@ export function GET(req: Request) {
     return ok({
       groups: [
         { title: "Clients", items: clients },
-        { title: "Leads", items: leads },
         { title: "Invoices", items: invoices },
         { title: "Compliance", items: compliance },
         { title: "Documents", items: documents },

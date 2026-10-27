@@ -27,18 +27,65 @@ Requires **Node.js 24+** (the data layer uses the built-in `node:sqlite` module)
 | Variable | Effect |
 | --- | --- |
 | `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY` | Enables LLM features (first key found wins, in that order — all have free tiers). Without any key the AI layer answers from deterministic practice data. |
+| `CRON_SECRET` | Bearer secret for `GET /api/cron/automation`, the scheduled automation sweep. Vercel Cron sends it automatically once it is set; without it the endpoint still accepts Vercel's own cron markers, so the deployment works either way. |
 | `AI_DAILY_LIMIT` | Tool-calling budget per user per day (default 80, min 5). Quota errors return 429. |
 | `GEMINI_BASE_URL`, `GROQ_BASE_URL`, `OPENROUTER_BASE_URL`, `NVIDIA_BASE_URL` | Optional origin override for a provider — point at a self-hosted OpenAI-compatible gateway (Ollama, LiteLLM, llama.cpp) or a test double. |
 | `FIELD_ENCRYPTION_KEY`, `SESSION_SECRET` | Override the auto-generated AES key / session-signing key (otherwise created in `.data/`, mode 0600). |
 | `ADMIN_PASSWORD`, `MANAGER_PASSWORD`, `STAFF_PASSWORD` | Set first-run passwords instead of generating them. |
 
+## How the app is organised (`lib/nav.ts`)
+
+Sixteen modules is how the software is built; it is not how a firm works. The sidebar
+lists the **seven moves of a working day** in the order the day happens — and, when
+expanded with the `»` control, **every module under its move**, so nothing is hidden
+from someone who used the older flat rail. The same modules also sit behind a tab
+strip on their parent page:
+
+| Section | Route | Modules behind the tabs |
+| --- | --- | --- |
+| **My day** | `/` | Guided dashboard: the four moves that clear a day, plus a 3-step first-run setup card |
+| **Compliance** | `/compliance` | Filing calendar · Notices · DSC · UDIN |
+| **Documents** | `/documents` | Client document requests, uploads, chase log |
+| **Clients** | `/clients` | Client master and the 360° desk for each client |
+| **Fees** | `/invoices` | Invoices · Timesheets · Reports |
+| **Automation** | `/automation` | Standing rules, run history, prepared-message outbox |
+| **Grow** | `/leads` | Leads · Proposals · Campaigns |
+| *Settings* | `/settings` | Firm profile, AI, security, accounts — visited, not worked in |
+
+`lib/nav.ts` is the single source of truth: the rail, the active-route highlighting
+(any grouped route keeps its parent section lit), the section tab strip
+(`components/section-tabs.tsx`) and the dashboard's workflow cards all read it. Adding
+or moving a module is one edit there. Every route still deep-links directly — grouping
+is navigation, never a gate.
+
+Staff-facing instructions (no technical language) live in
+[docs/HOW-TO-USE.md](docs/HOW-TO-USE.md): signing in, the three setup steps, the
+daily loop, where each old tab moved to, month-end, and the data-storage caveat.
+
+## A day in the software
+
+1. **First run.** The dashboard shows a three-step setup card — firm profile, first
+   client, switch automation on — and it disappears when all three are done. Three
+   role accounts are created on first boot (partner / manager / article).
+2. **My day.** Four numbered cards, filled from live data: clear the statutory
+   calendar, unblock the document chase, collect what is already earned, send what
+   automation prepared. Each card carries the number that matters and one button.
+3. **The work.** Compliance, paperwork and fees each have their own desk with the
+   actions staff actually take (mark filed, chase, record payment).
+4. **Automation.** A partner writes a rule once in plain English; the sweep prepares
+   chasers, dunning messages and recurring filings. Nothing is sent by the software —
+   prepared messages wait in the outbox and a human sends and marks them sent.
+5. **Grow.** Enquiries are scored, proposals generate from a lead, and a won proposal
+   converts into a real client without retyping anything.
+
 ## What is in the app
 
 | Module | Route | What it does |
 | --- | --- | --- |
-| Dashboard | `/` | KPIs, revenue chart, pipeline, urgent deadlines, activity feed |
+| Dashboard | `/` | Guided day (four moves), first-run setup, KPIs, revenue chart, urgent deadlines, activity feed |
 | AI Copilot | `/agent` | Practice-aware chat over live data (Groq optional) |
 | AI palette | `⌘J` / `Ctrl+J` (any page) | Global assistant: answers with a tool-call trace; writes wait for explicit approval |
+| Automation | `/automation` | Standing rules that do the repetitive half of the practice: document chasing, fee dunning, recurring filing generation, overdue/DSC/notice escalation — audited, with an outbox for prepared messages |
 | Documents | `/documents` | Client document requests, file upload/download (8 MB, allow-listed types), received/verified workflow, logged chase reminders |
 | Compliance | `/compliance` | Filing calendar with due dates, overdue detection, mark-filed, one-click recurring task generation for many clients |
 | Leads | `/leads` | Scored pipeline, stage changes, conversions |
@@ -51,6 +98,7 @@ Requires **Node.js 24+** (the data layer uses the built-in `node:sqlite` module)
 | DSC Tracker | `/dsc` | Token validity with expiring-soon detection |
 | Notices | `/notices` | Notices, deadlines, response status |
 | Timesheets | `/timesheets` | Billable hours with approval flow |
+| Guide | `/help` | One-page plain-language guide: setup, the daily loop, role limits, "where did that tab go", month-end. Linked from the topbar `?` and the dashboard |
 | Settings | `/settings` | Firm profile, AI provider/toggle, password rotation, role explainer, firm accounts (partner) |
 | Sign in | `/login` | Password sign-in with rate limiting and audit of attempts |
 | Privacy notice | `/privacy` | Public DPDP-aligned notice: storage, encryption, AI data flows, retention |
@@ -85,6 +133,19 @@ The AI sits **on top of the whole application** as one shared layer, not as per-
 - **Insights engine** (`lib/insights.ts`): deterministic rules for receivables concentration, overdue clusters, stalled documents, collection risk, utilization, DSC expiry, notice deadlines and untouched pipeline — each with a direct action link.
 
 Privacy guardrails: `ai_enabled` in Settings is a hard kill-switch; only aggregate facts (counts, amounts, due dates, names) are ever sent; PAN/GSTIN-shaped tokens are stripped from every prompt server-side; documents, passwords and identifiers are never included; each supported provider's terms exclude training on API inputs.
+
+## Automation layer (`/automation`)
+
+One level above the copilot: **if AI proposes an action, automation proposes the schedule.** A partner configures a rule once — "chase documents after 5 days", "dun invoices after 30 days", "raise GSTR-3B for every client, monthly" — and the sweep runs it unattended.
+
+- **A rule is a standing approval.** `auto` executes low-risk work (queuing a chaser, creating statutory tasks, recording an escalation); `approval` prepares each run as a pending `ai_action` for the copilot instead. Both are per-rule switches.
+- **Six rule types** (`lib/automation.ts`): `chase_documents`, `dunning`, `generate_compliance`, `escalate_overdue`, `dsc_watch`, `notice_watch` — plus seven one-click presets for the CA playbook.
+- **The sweep never sends.** Chasers and reminders land in an outbox as `Queued` messages with WhatsApp/email deep links; a human sends and marks them sent, so "sent" always means sent.
+- **Elapsed-time cadence** (`daily` / `weekly` / `monthly`) — a missed day self-heals instead of skipping the window.
+- **Run on schedule or on demand**: `GET /api/cron/automation` (see `vercel.json`, protected by `CRON_SECRET`) for the daily sweep; Run now / Preview / per-rule Run for the operator.
+- **Audited end-to-end**: every rule change and every run writes `automation_runs` (what it did, which records it created) and an `audit_log` entry. Preview writes nothing at all.
+- **Natural-language rule planning** (`POST /api/automation/plan`) maps a sentence to a rule; the deterministic planner always runs, and a configured provider can only refine a draft that is re-validated before it can be saved.
+- **Roles**: partner and manager configure and run; article accounts see the module read-only. See [docs/AUTOMATION.md](docs/AUTOMATION.md).
 
 ## Security & privacy
 
@@ -141,6 +202,8 @@ proxy.ts                auth gate, role policy, CSRF and rate limits (Node.js ru
 `POST /api/auth/login`, `POST /api/auth/logout`, `PATCH /api/auth/password`, `GET/POST /api/users` (partner)
 `POST /api/ai/chat`, `GET /api/ai/brief`, `POST /api/ai/draft`, `POST /api/ai/classify`
 `POST /api/ai/agent` (ask), `POST /api/ai/assist` (module assist), `POST /api/ai/actions/[id]` (approve/reject), `GET /api/ai/usage` (quota + recent calls)
+`GET/POST /api/automation` (rules), `PATCH/DELETE /api/automation/[id]`, `POST /api/automation/run` (sweep, dry-run capable), `GET /api/automation/runs`, `POST /api/automation/plan` (natural language → rule draft)
+`GET/PATCH /api/messages/[id]` (outbox: mark a prepared message sent or dismissed), `GET /api/cron/automation` (scheduled sweep, `CRON_SECRET`)
 `GET /api/export?type={clients,invoices,payments,compliance,documents,timesheets,leads}` streams UTF-8 CSV
 `POST /api/documents/[id]/file` (multipart upload), `GET /api/documents/[id]/file` (download), `DELETE` (detach)
 `POST /api/compliance/generate` (recurring tasks, duplicate-safe), `POST /api/proposals/[id]/convert` (idempotent client creation)
@@ -178,7 +241,25 @@ start. The deployed site is therefore a working demo, not a multi-user store —
 `CA_DATA_DIR` at a real volume or move the data layer to a hosted database before using it for
 genuine client records.
 
-Redeploy with `vercel deploy --prod` (or push to the linked project).
+Redeploy with `scripts/deploy.sh` (production) or `scripts/deploy.sh --preview`.
+
+> **Why the script, not `vercel deploy` from the repo root:** this checkout's
+> commits carry the placeholder author `user@example.com`, and the Vercel project
+> is Git-connected, so Vercel reads the last commit's author and refuses to build
+> any deployment that author created — the upload succeeds, the deployment then
+> shows `BLOCKED` with *“the commit author doesn't have permission to create
+> deployments for this project”* and no build log at all. Exporting the working
+> copy without `.git` removes the author from the payload, so the build runs. The
+> script exports to a temp directory (`node_modules`, `.next`, `.data` and
+> `deploy-credentials.local.md` excluded) and deploys from there; it never commits
+> or rewrites anything. Set `git config user.email` to the email on the Vercel
+> account and plain `npx vercel deploy --prod` works again.
+>
+> Current production deployment was verified on 24 Oct 2026: **29/29 live HTTP
+> checks** plus **60/60 browser checks** — health, partner and manager sign-in, the
+> guided dashboard, the expanded rail listing all sixteen modules, the guide page,
+> every route, the mobile nav, and zero console errors (including the IST/UTC
+> hydration fix).
 
 ## Public site (marketing)
 

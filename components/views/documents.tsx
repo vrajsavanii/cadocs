@@ -1,20 +1,48 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCheck, Download, FileCheck2, FileClock, FolderOpen, Paperclip, Plus, Sparkles } from "lucide-react";
-import type { Client, DocumentItem } from "@/lib/types";
+import { BellRing, CheckCheck, Download, FileCheck2, FileClock, Flag, FolderOpen, History, Paperclip, Plus, Send, Tag, Sparkles } from "lucide-react";
+import type { Client, DocumentItem, DocumentRequest } from "@/lib/types";
 import { Avatar, Badge, Button, EmptyState, Field, PageHeader, StatusPill, TableShell, Td, Th } from "../ui";
 import { Modal, useToast } from "../interactive";
 import { FilterTabs, ReminderButton, SearchBox, SectionCard, useMutation } from "./shared";
 import { prettyDate } from "@/lib/format";
 
-const FILTERS = ["All", "Pending", "Received", "Verified"] as const;
+const FILTERS = ["All", "Pending", "Received", "Rejected", "Verified"] as const;
 type Filter = (typeof FILTERS)[number];
 
-export function DocumentsView({ documents, clients, firmName }: { documents: DocumentItem[]; clients: Client[]; firmName: string }) {
+type VersionRow = {
+  version: number;
+  file_name: string;
+  size_bytes: number;
+  uploaded_by: string | null;
+  uploaded_at: string;
+  status: string;
+  change_reason: string;
+};
+
+export function DocumentsView({
+  documents,
+  clients,
+  firmName,
+  requests = [],
+  role = "article",
+}: {
+  documents: DocumentItem[];
+  clients: Client[];
+  firmName: string;
+  requests?: DocumentRequest[];
+  role?: string;
+}) {
+  const canReview = role === "partner" || role === "manager";
   const [filter, setFilter] = React.useState<Filter>("All");
   const [query, setQuery] = React.useState("");
+  const [rejectFor, setRejectFor] = React.useState<DocumentItem | null>(null);
+  const [rejectReason, setRejectReason] = React.useState("");
+  const [historyFor, setHistoryFor] = React.useState<DocumentItem | null>(null);
+  const [versions, setVersions] = React.useState<VersionRow[] | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
   const { busy, mutate } = useMutation();
   const { toast } = useToast();
@@ -26,6 +54,26 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
   });
   const [classifyBusy, setClassifyBusy] = React.useState(false);
   const [classifyHint, setClassifyHint] = React.useState("");
+  const [chasing, setChasing] = React.useState<string | null>(null);
+
+  async function chasePacket(request: DocumentRequest) {
+    setChasing(request.request_id);
+    try {
+      const res = await fetch(`/api/document-requests/${request.request_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "chase" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; status?: string };
+      if (!res.ok) throw new Error(data.error || "Could not prepare the message");
+      toast(data.status === "sent" ? "Sent on WhatsApp" : "Message added to the outbox");
+      router.refresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not prepare the message", "error");
+    } finally {
+      setChasing(null);
+    }
+  }
 
   async function suggestName() {
     if (form.document_name.trim().length < 3) return;
@@ -76,8 +124,42 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
     }
   }
 
-  async function updateStatus(doc: DocumentItem, status: DocumentItem["status"]) {
-    await mutate<DocumentItem>(`/api/documents/${doc.doc_id}`, "PATCH", { status }, status === "Received" ? "Marked received" : `Marked ${status.toLowerCase()}`);
+  async function updateStatus(doc: DocumentItem, status: DocumentItem["status"], reason = "") {
+    const success = await mutate<DocumentItem>(
+      `/api/documents/${doc.doc_id}`,
+      "PATCH",
+      { action: "status", status, reason },
+      status === "Received" ? "Marked received" : `Marked ${status.toLowerCase()}`,
+    );
+    if (status === "Rejected" && success) {
+      setRejectFor(null);
+      setRejectReason("");
+    }
+  }
+
+  async function archive(doc: DocumentItem) {
+    await mutate<DocumentItem>(`/api/documents/${doc.doc_id}`, "PATCH", { action: "archive" }, "Archived — bytes retained");
+  }
+
+  async function loadHistory(doc: DocumentItem) {
+    setHistoryFor(doc);
+    setVersions(null);
+    try {
+      const res = await fetch(`/api/documents/${doc.doc_id}/versions`);
+      const data = (await res.json().catch(() => ({}))) as { versions?: VersionRow[] };
+      setVersions(data.versions ?? []);
+    } catch {
+      setVersions([]);
+    }
+  }
+
+  async function classify(doc: DocumentItem) {
+    await mutate<DocumentItem>(
+      `/api/documents/${doc.doc_id}`,
+      "PATCH",
+      { action: "classify", needs_classification: true },
+      "Flagged as needs classification",
+    );
   }
 
   async function upload(doc: DocumentItem, file: File | undefined) {
@@ -107,6 +189,9 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
         title="Document tracker"
         description="Chase, receive and verify client documents without email archaeology."
       >
+        <Link href="/folders" className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold text-ink transition hover:bg-subtle">
+          <FolderOpen className="h-4 w-4" /> Client folders
+        </Link>
         <Button onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4" /> Request document
         </Button>
@@ -138,6 +223,7 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
                 <tr className="bg-subtle/60">
                   <Th>Document</Th>
                   <Th>Client</Th>
+                  <Th>Packet</Th>
                   <Th>Requested</Th>
                   <Th>Received</Th>
                   <Th>Status</Th>
@@ -149,7 +235,10 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
                   <tr key={d.doc_id} className="border-t border-black/5 transition hover:bg-subtle/40">
                     <Td>
                       <p className="text-xs font-semibold text-ink">{d.document_name}</p>
-                      <p className="text-[10px] text-muted">{d.doc_id}</p>
+                      <p className="text-[10px] text-muted">{d.doc_id} · {d.category || "General"} · {d.period || d.fy || "Unfiled"}</p>
+                      {d.needs_classification ? (
+                        <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-gold-soft/70 px-2 py-0.5 text-[9px] font-bold text-gold"><Tag className="h-2.5 w-2.5" /> Needs classification</p>
+                      ) : null}
                       {d.file_name ? (
                         <p className="mt-0.5 flex items-center gap-1 text-[10px] text-green">
                           <Paperclip className="h-2.5 w-2.5" />
@@ -157,12 +246,36 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
                           <span className="text-muted">{sizeLabel(d.file_size)}</span>
                         </p>
                       ) : null}
+                      {d.status === "Rejected" && d.review_reason ? (
+                        <p className="mt-0.5 max-w-[240px] text-[10px] font-semibold text-[#A33B2E]">Rejected: {d.review_reason}</p>
+                      ) : d.status === "Verified" && d.verified_by ? (
+                        <p className="mt-0.5 text-[10px] text-muted">Verified by {d.verified_by}</p>
+                      ) : null}
                     </Td>
                     <Td>
                       <div className="flex items-center gap-2">
                         <Avatar name={d.client_name} className="h-7 w-7 text-[9px]" />
                         <span className="text-xs text-ink">{d.client_name}</span>
                       </div>
+                    </Td>
+                    <Td>
+                      {(() => {
+                        const request = requests.find((r) => r.request_id === d.request_id);
+                        if (!request) return <span className="text-[10px] text-muted">Manual / unfiled</span>;
+                        return (
+                          <div>
+                            <p className="text-[10px] font-semibold text-ink">{request.period}</p>
+                            <p className="flex items-center gap-1 text-[9px] text-muted">
+                              <BellRing className="h-2.5 w-2.5" /> {request.reminders_sent}/{request.reminder_cap} reminders
+                            </p>
+                            <span className="mt-1 flex gap-0.5">
+                              {Array.from({ length: request.reminder_cap }).map((_, index) => (
+                                <span key={index} className={`h-1 w-2.5 rounded-full ${index < request.reminders_sent ? "bg-gold" : "bg-black/10"}`} />
+                              ))}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </Td>
                     <Td><span className="text-[11px] text-muted">{prettyDate(d.requested_date)}</span></Td>
                     <Td><span className="text-[11px] text-muted">{d.received_date ? prettyDate(d.received_date) : "—"}</span></Td>
@@ -177,18 +290,50 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
                             <Download className="h-3.5 w-3.5" /> File
                           </a>
                         ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void loadHistory(d)}
+                          title="Version history"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle"
+                        >
+                          <History className="h-3.5 w-3.5" /> Versions
+                        </button>
+                        {canReview ? (
+                          <button
+                            type="button"
+                            onClick={() => void classify(d)}
+                            title="Cannot confidently classify it yet"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle"
+                          >
+                            <Tag className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
                         {d.status === "Pending" ? (
                           <>
-                            <ReminderButton
-                              recipient={d.client_name}
-                              phone={clients.find((c) => c.name === d.client_name)?.phone}
-                              email={clients.find((c) => c.name === d.client_name)?.email}
-                              subject={`${d.document_name} pending`}
-                              relatedType="document"
-                              relatedId={d.doc_id}
-                              label="Chase"
-                              message={`Dear ${clients.find((c) => c.name === d.client_name)?.contact_person || d.client_name},\n\nWe are waiting on \"${d.document_name}\" to complete your filing. It was requested on ${prettyDate(d.requested_date)}.\n\nKindly share it at the earliest.\n\nRegards,\n${firmName}`}
-                            />
+                            {(() => {
+                              const request = requests.find((r) => r.request_id === d.request_id);
+                              if (request) {
+                                const capped = request.reminders_sent >= request.reminder_cap;
+                                return (
+                                  <Button size="sm" variant="secondary" loading={chasing === request.request_id} disabled={capped} onClick={() => void chasePacket(request)}>
+                                    {capped ? "Cap reached" : <><Send className="h-3 w-3" /> Chase packet</>}
+                                  </Button>
+                                );
+                              }
+                              const client = clients.find((c) => c.client_id === d.client_id);
+                              return (
+                                <ReminderButton
+                                  recipient={d.client_name}
+                                  phone={client?.phone}
+                                  email={client?.email}
+                                  subject={`${d.document_name} pending`}
+                                  relatedType="document"
+                                  relatedId={d.doc_id}
+                                  label="Chase"
+                                  message={`Dear ${client?.contact_person || d.client_name},\n\nWe are waiting on \"${d.document_name}\" to complete your filing. It was requested on ${prettyDate(d.requested_date)}.\n\nKindly share it at the earliest.\n\nRegards,\n${firmName}`}
+                                />
+                              );
+                            })()}
                             <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle">
                               <Paperclip className="h-3.5 w-3.5" /> Upload
                               <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx,.doc,.docx,.txt,.zip" onChange={(e) => { void upload(d, e.target.files?.[0]); e.target.value = ""; }} />
@@ -197,14 +342,33 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
                           </>
                         ) : d.status === "Received" ? (
                           <>
-                            <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle">
-                              <Paperclip className="h-3.5 w-3.5" /> {d.file_name ? "Replace" : "Upload"}
-                              <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx,.doc,.docx,.txt,.zip" onChange={(e) => { void upload(d, e.target.files?.[0]); e.target.value = ""; }} />
-                            </label>
-                            <Button size="sm" variant="soft" onClick={() => updateStatus(d, "Verified")} loading={busy}>Verify</Button>
+                            {canReview ? (
+                              <>
+                                <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle">
+                                  <Paperclip className="h-3.5 w-3.5" /> {d.file_name ? "Replace" : "Upload"}
+                                  <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx,.doc,.docx,.txt,.zip" onChange={(e) => { void upload(d, e.target.files?.[0]); e.target.value = ""; }} />
+                                </label>
+                                <Button size="sm" variant="soft" onClick={() => updateStatus(d, "Verified")} loading={busy}>Verify</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setRejectFor(d)}>
+                                  <Flag className="h-3.5 w-3.5" /> Reject
+                                </Button>
+                              </>
+                            ) : (
+                              <Badge tone="blue">Awaiting review</Badge>
+                            )}
                           </>
+                        ) : d.status === "Rejected" && canReview ? (
+                          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle">
+                            <Paperclip className="h-3.5 w-3.5" /> Replacement
+                            <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx,.doc,.docx,.txt,.zip" onChange={(e) => { void upload(d, e.target.files?.[0]); e.target.value = ""; }} />
+                          </label>
                         ) : (
-                          <Badge tone="green">Closed</Badge>
+                          <>
+                            {canReview ? (
+                              <Button size="sm" variant="ghost" onClick={() => void archive(d)}>Archive</Button>
+                            ) : null}
+                            <Badge tone="green">Closed</Badge>
+                          </>
                         )}
                       </div>
                     </Td>
@@ -245,6 +409,53 @@ export function DocumentsView({ documents, clients, firmName }: { documents: Doc
             <Button type="submit" loading={busy}>Request</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={rejectFor !== null} onClose={() => setRejectFor(null)} title={`Reject — ${rejectFor?.document_name ?? ""}`} description="The client cannot fix an unexplained rejection. Write what needs to change.">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!rejectFor) return;
+            void updateStatus(rejectFor, "Rejected", rejectReason);
+          }}
+          className="space-y-3"
+        >
+          <Field label="Reason (required)">
+            <textarea required minLength={3} className="input min-h-[80px]" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Amounts do not match the ledger; please re-export from the bank portal." />
+          </Field>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" onClick={() => setRejectFor(null)}>Cancel</Button>
+            <Button type="submit" loading={busy}><Flag className="h-4 w-4" /> Reject document</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={historyFor !== null} onClose={() => setHistoryFor(null)} title={`Versions — ${historyFor?.document_name ?? ""}`} description="Every upload is kept. Older versions stay downloadable from the file link with ?version=n.">
+        {!versions ? (
+          <p className="py-4 text-sm text-muted">Loading versions…</p>
+        ) : versions.length === 0 ? (
+          <p className="py-4 text-sm text-muted">No versions uploaded yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {versions.map((v) => (
+              <div key={v.version} className="flex items-center justify-between gap-2 rounded-xl border border-black/5 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-ink">v{v.version} · {v.file_name}</p>
+                  <p className="text-[10px] text-muted">
+                    {v.uploaded_by ? `${v.uploaded_by} · ` : ""}{prettyDate(v.uploaded_at.slice(0, 10))}
+                    {v.change_reason ? ` · ${v.change_reason}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge tone={v.status === "current" ? "green" : "neutral"}>{v.status}</Badge>
+                  <a href={`/api/documents/${historyFor?.doc_id}/file?version=${v.version}`} className="inline-flex h-7 items-center gap-1 rounded-full border border-black/10 bg-white px-2 text-[9px] font-bold text-ink hover:bg-subtle">
+                    <Download className="h-2.5 w-2.5" /> Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   );

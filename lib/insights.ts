@@ -8,6 +8,7 @@
  * directly on the dashboard.
  */
 import {
+  countQueuedMessages,
   getDashboard,
   listCompliance,
   listDocuments,
@@ -153,17 +154,33 @@ export function buildInsights(): Insight[] {
     });
   }
 
-  // 7. Hot pipeline left untouched.
+  // 7. Pipeline — proposals without a client conversion.
   const proposals = listProposals();
-  const hotLeads = kpis.hotLeads;
-  if (hotLeads > 0 && proposals.filter((p) => p.status === "Sent").length === 0) {
+  const accepted = proposals.filter((p) => p.status === "Accepted").length;
+  if (proposals.length > 0 && accepted === 0) {
     insights.push({
       id: "pipeline",
       tone: "info",
-      title: `${hotLeads} hot lead(s) without a live proposal`,
-      body: "Qualified interest cools fast — send an engagement proposal while the conversation is warm.",
+      title: "No proposals accepted yet",
+      body: "Send an engagement proposal to convert interest into a client engagement.",
       action_label: "Work pipeline",
       action_href: "/proposals",
+    });
+  }
+
+  // 8. Automation outbox waiting for a human send.
+  const queued = countQueuedMessages();
+  if (queued > 0) {
+    insights.push({
+      id: "outbox",
+      tone: queued >= 10 ? "warn" : "info",
+      title: `${queued} prepared message(s) waiting in the outbox`,
+      body:
+        queued >= 10
+          ? "Automation has drafted a batch of chasers and reminders. Open them, send on WhatsApp/email and mark them sent — otherwise the next sweep adds to the pile."
+          : "Automation prepared client chasers and fee reminders overnight. Send or dismiss them so the record stays true.",
+      action_label: "Open automation",
+      action_href: "/automation",
     });
   }
 
@@ -185,11 +202,14 @@ export function deterministicBrief(): string {
     .map((c) => `${c.client_name} — ${c.compliance_type} (${prettyDate(c.due_date)})`)
     .join("; ");
 
+  const queued = countQueuedMessages();
   const parts = [
     `${k.complianceDueThisWeek} filings are due this week and ${overdue.length} are already past due${next ? ` — oldest are ${next}` : ""}.`,
     `${inr(k.overdueFees)} sits overdue across ${overdueInvoices.length} invoices; collection rate is ${k.collectionRate}%.`,
-    `${k.pendingDocuments} client documents are still pending and ${k.hotLeads} hot lead${k.hotLeads === 1 ? "" : "s"} are waiting on a proposal.`,
-  ];
+    `${k.pendingDocuments} client documents are still pending.
+`,
+    queued > 0 ? `Automation has prepared ${queued} chaser/reminder message(s) — send them from the outbox.` : "",
+  ].filter(Boolean);
   const insight = buildInsights()[0];
   if (insight) parts.push(`Top risk right now: ${insight.title} — ${insight.body}`);
   return parts.join(" ");

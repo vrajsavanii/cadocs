@@ -125,6 +125,7 @@ const statusTone: Record<string, keyof typeof badgeTones> = {
   "Response Filed": "blue",
   "Partially Paid": "amber",
   Received: "blue",
+  Waived: "neutral",
   Sent: "blue",
   Pending: "amber",
   "In Progress": "amber",

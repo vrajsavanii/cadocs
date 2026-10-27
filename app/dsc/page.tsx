@@ -1,8 +1,14 @@
 import { listClients, listDsc } from "@/lib/db";
 import { DscView } from "@/components/views/dsc";
+import { SectionTabs } from "@/components/section-tabs";
 
 export const dynamic = "force-dynamic";
 
 export default function DscPage() {
-  return <DscView records={listDsc()} clients={listClients().map((c) => c.name)} />;
+  return (
+    <>
+      <SectionTabs />
+      <DscView records={listDsc()} clients={listClients().map((c) => c.name)} />
+    </>
+  );
 }

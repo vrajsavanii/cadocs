@@ -13,7 +13,7 @@ export function AgentView({
   kpis,
 }: {
   brief: string;
-  kpis: { clients: number; dueWeek: number; overdueFees: string; pendingDocs: number; hotLeads: number };
+  kpis: { clients: number; dueWeek: number; overdueFees: string; pendingDocs: number };
 }) {
   const [messages, setMessages] = React.useState<Message[]>([
     {
@@ -183,7 +183,7 @@ export function AgentView({
                 ["Filings due this week", kpis.dueWeek],
                 ["Overdue fees", kpis.overdueFees],
                 ["Documents pending", kpis.pendingDocs],
-                ["Hot leads", kpis.hotLeads],
+                
               ].map(([label, value]) => (
                 <div key={String(label)} className="flex items-center justify-between border-b border-black/5 pb-1.5 last:border-0">
                   <dt className="text-muted">{label}</dt>

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { getNavCounts, getSettings } from "@/lib/db";
+import { ensureEngagementData } from "@/lib/engagements-db";
 import { getSessionUser } from "@/lib/auth";
 import { Sidebar, Topbar, MobileNav } from "@/components/shell";
 import { ToastProvider } from "@/components/interactive";
@@ -53,6 +54,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     );
   }
 
+  // One-time upgrade of an existing practice database into the engagement
+  // model, plus the current period for every active service. Cheap after the
+  // first call (guarded by a marker in settings).
+  ensureEngagementData();
   const settings = getSettings();
   const counts = getNavCounts();
 

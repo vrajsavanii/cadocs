@@ -179,3 +179,40 @@ export function rateLimit(key: string, limit: number, windowMs: number): { ok: b
   }
   return { ok: true, retryAfterSec: 0 };
 }
+
+// ── Stateless download tokens (invoice PDFs) ─────────────────────────────────
+
+export type DownloadTokenClaims = { iid: string; iat: number; exp: number };
+
+/**
+ * Signs a short-lived, single-scope token that lets an invoice PDF be read
+ * without a login session. The token grants exactly one invoice (never a
+ * firm-wide or pattern-matched scope) and expires, so a link pasted into a
+ * WhatsApp message cannot become a permanent public URL to private data.
+ */
+export function signDownloadToken(invoiceId: string, ttlHours = 72): string {
+  const now = Math.floor(Date.now() / 1000);
+  const payload: DownloadTokenClaims = { iid: invoiceId, iat: now, exp: now + ttlHours * 3600 };
+  const body = b64url(JSON.stringify(payload));
+  const sig = createHmac("sha256", loadKey("session")).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+export function verifyDownloadToken(token: string | null | undefined, invoiceId: string): DownloadTokenClaims | null {
+  if (!token) return null;
+  const dot = token.lastIndexOf(".");
+  if (dot < 1) return null;
+  const body = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = createHmac("sha256", loadKey("session")).update(body).digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as DownloadTokenClaims;
+    if (claims.iid !== invoiceId || typeof claims.exp !== "number" || claims.exp < Date.now() / 1000) return null;
+    return claims;
+  } catch {
+    return null;
+  }
+}

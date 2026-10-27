@@ -1,4 +1,4 @@
-import { getDashboard, listClients, listCompliance, listDocuments, listInvoices, listLeads } from "@/lib/db";
+import { getDashboard, listClients, listCompliance, listDocuments, listInvoices } from "@/lib/db";
 import { getSettings } from "@/lib/db";
 import { handle, ok, readBody, str } from "@/lib/api";
 import { inr, prettyDate } from "@/lib/format";
@@ -12,7 +12,6 @@ function buildContext() {
   const compliance = listCompliance().filter((c) => c.status !== "Filed");
   const invoices = listInvoices().filter((i) => i.status !== "Paid");
   const documents = listDocuments().filter((d) => d.status === "Pending");
-  const leads = listLeads().filter((l) => !["Won", "Lost"].includes(l.status));
   const stats = getDashboard().kpis;
 
   return [
@@ -21,7 +20,6 @@ function buildContext() {
     `Next deadlines: ${compliance.slice(0, 5).map((c) => `${c.client_name} — ${c.compliance_type} on ${prettyDate(c.due_date)} (${c.status})`).join("; ")}`,
     `Overdue invoices: ${invoices.filter((i) => i.status === "Overdue").slice(0, 5).map((i) => `${i.client_name} ${inr(i.total_amount)} since ${prettyDate(i.due_date)}`).join("; ")}`,
     `Pending documents: ${documents.slice(0, 6).map((d) => `${d.client_name} — ${d.document_name}`).join("; ")}`,
-    `Open leads: ${leads.slice(0, 6).map((l) => `${l.name} (${l.company_name}) ${l.category}/${l.status}, score ${l.lead_score}`).join("; ")}`,
   ].join("\n");
 }
 
@@ -31,7 +29,6 @@ function fallbackReply(message: string): string {
   const compliance = listCompliance().filter((c) => c.status !== "Filed");
   const invoices = listInvoices().filter((i) => i.status !== "Paid");
   const documents = listDocuments().filter((d) => d.status === "Pending");
-  const leads = listLeads().filter((l) => !["Won", "Lost"].includes(l.status));
   const stats = getDashboard().kpis;
 
   if (/overdue|penalt|late/.test(q)) {
@@ -64,15 +61,6 @@ function fallbackReply(message: string): string {
     ].join("\n");
   }
 
-  if (/lead|pipeline|prospect|crm|convert/.test(q)) {
-    return [
-      `**Lead pipeline** — ${leads.length} open leads, ${stats.hotLeads} marked hot.`,
-      ...leads.slice(0, 5).map((l) => `• ${l.name} (${l.company_name}) — ${l.category}, ${l.status}, score ${l.lead_score}`),
-      ``,
-      `Highest-value next action: follow up on qualified leads with a proposal this week.`,
-    ].join("\n");
-  }
-
   if (/document|pending|collect|upload/.test(q)) {
     return [
       `**Document chase list** — ${documents.length} pending.`,
@@ -92,9 +80,8 @@ function fallbackReply(message: string): string {
     `• ${compliance.length} open compliance tasks (${stats.complianceDueThisWeek} due this week)`,
     `• ${inr(stats.overdueFees)} overdue fees across ${invoices.filter((i) => i.status === "Overdue").length} invoices`,
     `• ${documents.length} documents pending from clients`,
-    `• ${leads.length} open leads (${stats.hotLeads} hot)`,
     ``,
-    `Ask me about deadlines, fee recovery, documents, or the lead pipeline for a deeper breakdown.`,
+    `Ask me about deadlines, fee recovery, documents, or a deeper breakdown.`,
   ].join("\n");
 }
 

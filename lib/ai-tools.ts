@@ -14,14 +14,15 @@ import {
   createCompliance,
   createDocument,
   createMessage,
+  generateCompliance,
   getClient,
   getClientDetail,
   getDashboard,
+  getSettings,
   listClients,
   listCompliance,
   listDocuments,
   listInvoices,
-  listLeads,
   listNotices,
   listProposals,
   listTimesheets,
@@ -95,6 +96,13 @@ function enumArg<T extends string>(raw: Args, key: string, allowed: readonly T[]
   return value as T;
 }
 
+/** Enum with a default — used by automation, which may omit optional knobs. */
+function enumArgOr<T extends string>(raw: Args, key: string, allowed: readonly T[], fallback: T): T {
+  const value = raw[key];
+  if (value === undefined || value === null || value === "") return fallback;
+  return enumArg(raw, key, allowed);
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -123,8 +131,7 @@ const practiceOverview: ToolDef = {
         overdue_fees: k.overdueFees,
         collection_rate: k.collectionRate,
         pending_documents: k.pendingDocuments,
-        open_leads: k.openLeads,
-        hot_leads: k.hotLeads,
+
         top_risk: insight ? `${insight.title}: ${insight.body}` : null,
       },
     };
@@ -386,31 +393,6 @@ const utilizationSummary: ToolDef = {
   },
 };
 
-const pipelineSummary: ToolDef = {
-  name: "pipeline_summary",
-  description: "Lead pipeline by stage, hot leads and live proposals.",
-  kind: "read",
-  roles: READ_ROLES,
-  parameters: { type: "object", properties: {}, additionalProperties: false },
-  validate: (raw) => asObject(raw),
-  execute: () => {
-    const leads = listLeads();
-    const stages = ["New", "Contacted", "Qualified", "Proposal Sent", "Won", "Lost"] as const;
-    const counts = Object.fromEntries(stages.map((s) => [s, leads.filter((l) => l.status === s).length])) as Record<string, number>;
-    const hot = leads.filter((l) => l.category === "Hot" && !["Won", "Lost"].includes(l.status));
-    const proposals = listProposals();
-    return {
-      summary: `${leads.filter((l) => !["Won", "Lost"].includes(l.status)).length} open leads, ${hot.length} hot, ${proposals.filter((p) => p.status === "Sent").length} proposals sent.`,
-      data: {
-        stages: counts,
-        hot_leads: hot.slice(0, 6).map((l) => ({ name: l.name, company: l.company_name, status: l.status, score: l.lead_score })),
-        proposals_sent: proposals.filter((p) => p.status === "Sent").length,
-        proposals_accepted: proposals.filter((p) => p.status === "Accepted").length,
-      },
-    };
-  },
-};
-
 const getNotice: ToolDef = {
   name: "get_notice",
   description: "One notice or order record: type, portal, deadline, amount, status and notes — basis for drafting a reply.",
@@ -596,6 +578,252 @@ const logReminder: ToolDef = {
   },
 };
 
+// ── Bulk write tools (automation: one action covers many clients) ─────────────
+
+const chaseDocumentsBulk: ToolDef = {
+  name: "chase_documents_bulk",
+  description:
+    "Queue one consolidated document chaser per client for every request older than N days. Messages are logged as Queued in the outbox — nothing is sent by itself. Requires human approval in chat; automation rules may execute it under a standing approval.",
+  kind: "write",
+  roles: WRITE_ROLES,
+  parameters: {
+    type: "object",
+    properties: {
+      older_than_days: { type: "number", description: "Only requests waiting at least this many days (default 5)" },
+      channel: { type: "string", description: "Delivery channel to prepare", enum: ["WhatsApp", "Email"] },
+      limit: { type: "number", description: "Maximum clients to queue (default 20, max 40)" },
+    },
+    additionalProperties: false,
+  },
+  validate: (raw) => {
+    const args = asObject(raw);
+    return {
+      older_than_days: intArg(args, "older_than_days", { min: 0, max: 365, fallback: 5 }),
+      channel: enumArgOr(args, "channel", ["WhatsApp", "Email"] as const, "WhatsApp"),
+      limit: intArg(args, "limit", { min: 1, max: 40, fallback: 20 }),
+    };
+  },
+  preview: (args) => `Chase documents older than ${args.older_than_days} days by ${args.channel}`,
+  execute: (args) => {
+    const minDays = Number(args.older_than_days);
+    const channel = args.channel === "Email" ? "Email" : "WhatsApp";
+    const limit = Number(args.limit);
+    const firm = getSettings().firm_name || "the firm";
+
+    const waiting = listDocuments()
+      .filter((d) => d.status === "Pending")
+      .map((d) => ({ ...d, days: Math.max(0, -dayDiff(d.requested_date)) }))
+      .filter((d) => d.days >= minDays);
+
+    const byClient = new Map<string, { name: string; docs: string[]; oldest: number }>();
+    for (const d of waiting) {
+      const row = byClient.get(d.client_id) ?? { name: d.client_name, docs: [], oldest: 0 };
+      row.docs.push(d.document_name);
+      row.oldest = Math.max(row.oldest, d.days);
+      byClient.set(d.client_id, row);
+    }
+
+    const targets = [...byClient.entries()].sort((a, b) => b[1].oldest - a[1].oldest).slice(0, limit);
+    const messageIds: string[] = [];
+    const covered: string[] = [];
+    const skipped: string[] = [];
+
+    for (const [clientId, row] of targets) {
+      const client = getClient(clientId);
+      const address = channel === "WhatsApp" ? client?.phone : client?.email;
+      if (!client || !address) {
+        skipped.push(row.name);
+        continue;
+      }
+      const list = row.docs.slice(0, 6).map((n) => `• ${n}`).join("\n");
+      const more = row.docs.length > 6 ? `\n• (+${row.docs.length - 6} more)` : "";
+      const body = [
+        `Dear ${client.contact_person || client.name},`,
+        "",
+        "We are still waiting on the following documents for your compliance work:",
+        `${list}${more}`,
+        "",
+        `The oldest request is ${row.oldest} day${row.oldest === 1 ? "" : "s"} old. Kindly share these at the earliest so the filings stay on schedule.`,
+        "",
+        "Regards,",
+        firm,
+      ].join("\n");
+      const message = createMessage({
+        channel,
+        recipient_name: client.name,
+        to_address: address,
+        subject: "Documents pending for your compliance work",
+        body,
+        related_type: "client",
+        related_id: client.client_id,
+        status: "Queued",
+      });
+      messageIds.push(message.message_id);
+      covered.push(...row.docs.map((d) => `${client.name} — ${d}`));
+    }
+
+    return {
+      summary: `${messageIds.length} ${channel} chaser(s) queued covering ${covered.length} document(s)${skipped.length ? `; ${skipped.length} client(s) skipped (no ${channel === "WhatsApp" ? "phone" : "email"})` : ""}.`,
+      data: { queued: messageIds.length, documents: covered.length, skipped, message_ids: messageIds },
+    };
+  },
+};
+
+const dunningBulk: ToolDef = {
+  name: "dunning_bulk",
+  description:
+    "Queue one reminder per client for unpaid invoices past N days, grouped by client with a tone that escalates with age. Logged as Queued messages — nothing is sent by itself.",
+  kind: "write",
+  roles: WRITE_ROLES,
+  parameters: {
+    type: "object",
+    properties: {
+      min_days_late: { type: "number", description: "Only invoices at least this many days past due (default 30)" },
+      min_balance: { type: "number", description: "Ignore balances below this amount (default 0)" },
+      channel: { type: "string", description: "Delivery channel to prepare", enum: ["WhatsApp", "Email"] },
+      limit: { type: "number", description: "Maximum clients to queue (default 20, max 40)" },
+    },
+    additionalProperties: false,
+  },
+  validate: (raw) => {
+    const args = asObject(raw);
+    return {
+      min_days_late: intArg(args, "min_days_late", { min: 0, max: 365, fallback: 30 }),
+      min_balance: intArg(args, "min_balance", { min: 0, max: 100_000_000, fallback: 0 }),
+      channel: enumArgOr(args, "channel", ["WhatsApp", "Email"] as const, "WhatsApp"),
+      limit: intArg(args, "limit", { min: 1, max: 40, fallback: 20 }),
+    };
+  },
+  preview: (args) => `Send ${args.channel} reminders for invoices ${args.min_days_late}+ days late`,
+  execute: (args) => {
+    const minDays = Number(args.min_days_late);
+    const minBalance = Number(args.min_balance);
+    const channel = args.channel === "Email" ? "Email" : "WhatsApp";
+    const limit = Number(args.limit);
+    const firm = getSettings().firm_name || "the firm";
+
+    const late = listInvoices()
+      .filter((i) => i.status !== "Paid" && i.status !== "Cancelled")
+      .map((i) => ({ ...i, balance: i.total_amount - (i.paid_amount ?? 0), daysLate: Math.max(0, -dayDiff(i.due_date)) }))
+      .filter((i) => i.daysLate >= minDays && i.daysLate > 0 && i.balance >= minBalance && i.balance > 0);
+
+    const byClient = new Map<string, { name: string; invoices: Array<{ id: string; balance: number; daysLate: number }> }>();
+    for (const inv of late) {
+      const row = byClient.get(inv.client_id) ?? { name: inv.client_name, invoices: [] };
+      row.invoices.push({ id: inv.invoice_id, balance: inv.balance, daysLate: inv.daysLate });
+      byClient.set(inv.client_id, row);
+    }
+
+    const targets = [...byClient.entries()]
+      .map(([id, row]) => ({ id, row, total: row.invoices.reduce((s, i) => s + i.balance, 0), worst: Math.max(...row.invoices.map((i) => i.daysLate)) }))
+      .sort((a, b) => b.worst - a.worst)
+      .slice(0, limit);
+
+    const messageIds: string[] = [];
+    const skipped: string[] = [];
+    let amount = 0;
+
+    for (const { id, row, total, worst } of targets) {
+      const client = getClient(id);
+      const address = channel === "WhatsApp" ? client?.phone : client?.email;
+      if (!client || !address) {
+        skipped.push(row.name);
+        continue;
+      }
+      const tone = worst > 60 ? "Final reminder" : worst > 30 ? "Payment follow-up" : "Gentle reminder";
+      const lines = row.invoices
+        .slice(0, 6)
+        .map((i) => `• ${i.id} — ${inr(i.balance)} (${i.daysLate} days overdue)`)
+        .join("\n");
+      const closers: Record<string, string> = {
+        "Gentle reminder": "If the payment has already been made, please share the transaction reference so we can reconcile it.",
+        "Payment follow-up": "Kindly arrange the payment this week, or let us know a date so we can plan accordingly.",
+        "Final reminder": "Please settle this at the earliest to avoid further follow-up. If there is an issue with the invoice, tell us and we will resolve it.",
+      };
+      const body = [
+        `Dear ${client.contact_person || client.name},`,
+        "",
+        `${tone} — the following invoice(s) are past due with ${firm}:`,
+        lines,
+        "",
+        `Total outstanding: ${inr(total)}`,
+        closers[tone]!,
+        "",
+        "Regards,",
+        firm,
+      ].join("\n");
+      const message = createMessage({
+        channel,
+        recipient_name: client.name,
+        to_address: address,
+        subject: `${tone} — outstanding fees`,
+        body,
+        related_type: "client",
+        related_id: client.client_id,
+        status: "Queued",
+      });
+      messageIds.push(message.message_id);
+      amount += total;
+    }
+
+    return {
+      summary: `${messageIds.length} ${channel} reminder(s) queued for ${inr(amount)} outstanding${skipped.length ? `; ${skipped.length} client(s) skipped (no ${channel === "WhatsApp" ? "phone" : "email"})` : ""}.`,
+      data: { queued: messageIds.length, amount, skipped, message_ids: messageIds },
+    };
+  },
+};
+
+const generateComplianceBatch: ToolDef = {
+  name: "generate_compliance_batch",
+  description:
+    "Create one recurring statutory task (GSTR-1/3B/9, TDS, ITR, audit, ROC) for every client in one action, skipping duplicates. Requires human approval in chat; automation rules may execute it under a standing approval.",
+  kind: "write",
+  roles: WRITE_ROLES,
+  parameters: {
+    type: "object",
+    properties: {
+      compliance_type: { type: "string", description: "Statutory task type", enum: [...COMPLIANCE_TYPES] },
+      period: { type: "string", description: "Period label, e.g. 'Nov 2026' or 'FY 2026-27'" },
+      due_date: { type: "string", description: "Due date (YYYY-MM-DD)" },
+      assigned_to: { type: "string", description: "Optional staff member the tasks are assigned to" },
+    },
+    required: ["compliance_type", "period", "due_date"],
+    additionalProperties: false,
+  },
+  validate: (raw) => {
+    const args = asObject(raw);
+    const out: Args = {
+      compliance_type: enumArg(args, "compliance_type", COMPLIANCE_TYPES),
+      period: strArg(args, "period", { max: 40 }),
+      due_date: dateArg(args, "due_date"),
+      assigned_to: strArg(args, "assigned_to", { max: 60, optional: true }),
+    };
+    // Internal (automation) scope: an explicit client list, never model-supplied.
+    if (Array.isArray(args.client_ids)) {
+      const ids = (args.client_ids as unknown[]).filter((v): v is string => typeof v === "string").slice(0, 500);
+      if (ids.length) out.client_ids = ids;
+    }
+    return out;
+  },
+  preview: (args) => `Create ${args.compliance_type} for all clients (${args.period}, due ${args.due_date})`,
+  execute: (args) => {
+    const scope = Array.isArray(args.client_ids)
+      ? (args.client_ids as string[])
+      : listClients().map((c) => c.client_id);
+    const result = generateCompliance({
+      compliance_type: String(args.compliance_type),
+      period: String(args.period),
+      due_date: String(args.due_date),
+      assigned_to: String(args.assigned_to ?? ""),
+      client_ids: scope,
+    });
+    return {
+      summary: `${result.created} ${args.compliance_type} task(s) created${result.skipped ? `, ${result.skipped} already existed` : ""}.`,
+      data: { created: result.created, skipped: result.skipped, ids: result.ids },
+    };
+  },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 export const TOOLS: ToolDef[] = [
@@ -607,11 +835,13 @@ export const TOOLS: ToolDef[] = [
   listOverdueInvoices,
   revenueSummary,
   utilizationSummary,
-  pipelineSummary,
   getNotice,
   requestDocument,
   createComplianceTask,
   logReminder,
+  chaseDocumentsBulk,
+  dunningBulk,
+  generateComplianceBatch,
 ];
 
 export function getTool(name: string): ToolDef | undefined {

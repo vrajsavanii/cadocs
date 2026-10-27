@@ -5,6 +5,7 @@ import { Building2, Database, KeyRound, Mail, MessageCircle, Save, ShieldCheck, 
 import type { AuthUser, Settings } from "@/lib/types";
 import { Badge, Button, Card, Field, PageHeader } from "../ui";
 import { useMutation } from "./shared";
+import { prettyDateTime } from "@/lib/format";
 import { AiUsageStrip } from "../ai-usage";
 
 type Integration = {
@@ -241,7 +242,7 @@ export function SettingsView({
                     <td className="px-3 py-2.5 text-xs font-semibold text-ink">{u.name}</td>
                     <td className="px-3 py-2.5 font-mono text-[11px] text-muted">{u.username}</td>
                     <td className="px-3 py-2.5"><Badge tone={u.role === "partner" ? "green" : u.role === "manager" ? "amber" : "neutral"}>{u.role}</Badge></td>
-                    <td className="px-3 py-2.5 text-[11px] text-muted">{u.last_login ? new Date(u.last_login).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Never"}</td>
+                    <td className="px-3 py-2.5 text-[11px] text-muted">{u.last_login ? prettyDateTime(u.last_login) : "Never"}</td>
                   </tr>
                 ))}
               </tbody>

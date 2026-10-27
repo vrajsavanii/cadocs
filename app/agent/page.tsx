@@ -20,8 +20,7 @@ export default function AgentPage() {
         dueWeek: k.complianceDueThisWeek,
         overdueFees: inr(k.overdueFees),
         pendingDocs: k.pendingDocuments,
-        hotLeads: k.hotLeads,
-      }}
+        }}
     />
   );
 }

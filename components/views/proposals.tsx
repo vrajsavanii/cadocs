@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CheckCheck, Copy, FileSignature, Plus, Printer, Send } from "lucide-react";
-import type { Lead, Proposal } from "@/lib/types";
+import type { Proposal } from "@/lib/types";
 import { Badge, Button, EmptyState, Field, PageHeader, Stat, StatusPill, TableShell, Td, Th } from "../ui";
 import { Modal, useToast } from "../interactive";
 import { SearchBox, SectionCard, useMutation } from "./shared";
@@ -12,13 +12,14 @@ const ENTITY_TYPES = ["Private Limited", "LLP", "Proprietorship", "Partnership",
 const FEE_PRESETS = ["₹15,000 / month", "₹18,000 / month", "₹25,000 / month", "₹45,000 / engagement", "₹75,000 / engagement"];
 
 const emptyForm = {
-  lead_id: "",
+  prospect_name: "",
+  company_name: "",
   entity_type: "Private Limited",
   services: "",
   fee: FEE_PRESETS[0],
 };
 
-export function ProposalsView({ proposals, leads }: { proposals: Proposal[]; leads: Lead[] }) {
+export function ProposalsView({ proposals }: { proposals: Proposal[] }) {
   const [query, setQuery] = React.useState("");
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [preview, setPreview] = React.useState<Proposal | null>(null);
@@ -45,21 +46,9 @@ export function ProposalsView({ proposals, leads }: { proposals: Proposal[]; lea
     };
   }, [proposals]);
 
-  const selectedLead = leads.find((l) => l.lead_id === form.lead_id);
-
   function openCompose() {
     setForm(emptyForm);
     setComposeOpen(true);
-  }
-
-  function chooseLead(leadId: string) {
-    const lead = leads.find((l) => l.lead_id === leadId);
-    setForm((f) => ({
-      ...f,
-      lead_id: leadId,
-      services: lead?.service_interest || f.services,
-      entity_type: lead?.company_name?.includes("LLP") ? "LLP" : f.entity_type,
-    }));
   }
 
   async function generate(e: React.FormEvent) {
@@ -101,7 +90,7 @@ export function ProposalsView({ proposals, leads }: { proposals: Proposal[]; lea
       <PageHeader
         eyebrow="New business"
         title="Proposals"
-        description="Draft partner-ready engagement proposals from the lead pipeline in one pass."
+        description="Draft partner-ready engagement proposals"
       >
         <Button onClick={openCompose}>
           <Plus className="h-4 w-4" /> New proposal
@@ -117,14 +106,14 @@ export function ProposalsView({ proposals, leads }: { proposals: Proposal[]; lea
 
       <SectionCard
         title={`${filtered.length} of ${proposals.length} proposals`}
-        subtitle="Generated from live lead + firm settings — fully editable before sending"
+        subtitle="Fully editable before sending"
         action={<SearchBox value={query} onChange={setQuery} placeholder="Search proposals…" className="w-full sm:w-56" />}
       >
         {filtered.length === 0 ? (
           <EmptyState
             icon={<FileSignature className="h-5 w-5" />}
             title={proposals.length ? "No proposals match that search" : "No proposals yet"}
-            description={proposals.length ? "Try a different prospect, company or fee." : "Generate your first engagement proposal from a qualified lead."}
+            description={proposals.length ? "Try a different prospect, company or fee." : "Generate your first proposal."}
             action={<Button onClick={openCompose}><Plus className="h-4 w-4" /> New proposal</Button>}
           />
         ) : (
@@ -146,11 +135,7 @@ export function ProposalsView({ proposals, leads }: { proposals: Proposal[]; lea
                   <tr key={p.proposal_id} className="border-t border-black/5 transition hover:bg-subtle/50">
                     <Td>
                       <p className="font-mono text-[11px] font-semibold text-ink">{p.proposal_id}</p>
-                      <p className="text-[10px] text-muted">{p.lead_id}</p>
-                    </Td>
-                    <Td>
-                      <p className="text-sm font-semibold text-ink">{p.prospect_name}</p>
-                      <p className="text-[11px] text-muted">{p.company_name} · {p.entity_type}</p>
+                      <p className="text-[10px] text-muted">{p.prospect_name}</p>
                     </Td>
                     <Td>
                       <div className="flex max-w-[240px] flex-wrap gap-1">
@@ -178,49 +163,34 @@ export function ProposalsView({ proposals, leads }: { proposals: Proposal[]; lea
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
         title="Generate a proposal"
-        description="Pick a lead, confirm the scope and fee — the document is built from your firm settings."
+        description="Confirm the scope and fee — the document is built from your firm settings."
         wide
       >
         <form onSubmit={generate} className="space-y-3">
-          <Field label="Lead" hint="Prospect details are pulled from the CRM record.">
-            <select required className="input" value={form.lead_id} onChange={(e) => chooseLead(e.target.value)}>
-              <option value="">Select a lead…</option>
-              {leads.map((l) => (
-                <option key={l.lead_id} value={l.lead_id}>
-                  {l.name} — {l.company_name || l.name} ({l.status})
-                </option>
-              ))}
+          <Field label="Prospect name" hint="Who this engagement is with.">
+            <input required className="input" value={form.prospect_name} onChange={(e) => setForm({ ...form, prospect_name: e.target.value })} placeholder="Rahul Sharma" />
+          </Field>
+          <Field label="Company name" hint="Leave blank to use the prospect name.">
+            <input className="input" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} placeholder="Sharma Textiles Pvt Ltd" />
+          </Field>
+          <Field label="Entity type">
+            <select className="input" value={form.entity_type} onChange={(e) => setForm({ ...form, entity_type: e.target.value })}>
+              {ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
           </Field>
-
-          {selectedLead ? (
-            <div className="grid gap-2 rounded-2xl bg-subtle p-3 text-[11px] text-muted sm:grid-cols-3">
-              <p><span className="font-bold text-ink">Score</span> · {selectedLead.lead_score}</p>
-              <p><span className="font-bold text-ink">Category</span> · {selectedLead.category}</p>
-              <p><span className="font-bold text-ink">Stage</span> · {selectedLead.status}</p>
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Entity type">
-              <select className="input" value={form.entity_type} onChange={(e) => setForm({ ...form, entity_type: e.target.value })}>
-                {ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="Proposed fee">
-              <input className="input" list="fee-presets" value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })} />
-              <datalist id="fee-presets">
-                {FEE_PRESETS.map((f) => <option key={f} value={f} />)}
-              </datalist>
-            </Field>
-            <Field label="Scope of services" className="sm:col-span-2" hint="Comma-separated — each item becomes a scope line.">
-              <input required className="input" value={form.services} onChange={(e) => setForm({ ...form, services: e.target.value })} placeholder="GST Filing, Tax Audit, ITR" />
-            </Field>
-          </div>
+          <Field label="Proposed fee">
+            <input className="input" list="fee-presets" value={form.fee} onChange={(e) => setForm({ ...form, fee: e.target.value })} />
+            <datalist id="fee-presets">
+              {FEE_PRESETS.map((f) => <option key={f} value={f} />)}
+            </datalist>
+          </Field>
+          <Field label="Scope of services" className="sm:col-span-2" hint="Comma-separated — each item becomes a scope line.">
+            <input required className="input" value={form.services} onChange={(e) => setForm({ ...form, services: e.target.value })} placeholder="GST Filing, Tax Audit, ITR" />
+          </Field>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={busy} disabled={!form.lead_id}>Generate proposal</Button>
+            <Button type="submit" loading={busy} disabled={!form.prospect_name.trim()}>Generate proposal</Button>
           </div>
         </form>
       </Modal>

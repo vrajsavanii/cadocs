@@ -4,13 +4,21 @@ import path from "node:path";
 import type {
   AuditEntry,
   AuthUser,
+  AutomationCadence,
+  AutomationKind,
+  AutomationMode,
+  AutomationRule,
+  AutomationRun,
   Campaign,
   Client,
   ClientDetail,
+  ClientService,
   Compliance,
   DashboardData,
-  Dsc,
   DocumentItem,
+  FileVersion,
+  DocumentRequest,
+  Dsc,
   Invoice,
   Lead,
   Message,
@@ -19,13 +27,19 @@ import type {
   Proposal,
   ReportData,
   Settings,
+  StatusHistoryEntry,
+  TaskEvent,
   Timesheet,
   Udin,
+  WorkStage,
 } from "./types";
 import { dayDiff } from "./format";
+import { SERVICES, fyForDate, inspectGstin, serviceCodeFromLabel, validateGstin } from "./services";
+import { createHash } from "node:crypto";
 import { buildProposal } from "./proposals";
 import { decryptField, encryptField, generatePassword, hashPassword, isEncrypted } from "./crypto";
 import { dataPath } from "./data-dir";
+import { getConfig } from "./config";
 
 const DB_FILE = dataPath("ca-suite.db");
 
@@ -53,25 +67,32 @@ function migrate(db: DatabaseSync) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
       client_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT, phone TEXT, email TEXT,
-      entity_type TEXT, gst_number TEXT, pan TEXT, services_opted TEXT, city TEXT, state TEXT, created_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS leads (
-      lead_id TEXT PRIMARY KEY, name TEXT NOT NULL, company_name TEXT, phone TEXT, email TEXT,
-      source TEXT, service_interest TEXT, lead_score INTEGER, category TEXT, status TEXT, notes TEXT, created_at TEXT
+      entity_type TEXT, gst_number TEXT, pan TEXT, services_opted TEXT, city TEXT, state TEXT, created_at TEXT,
+      legal_name TEXT, trade_name TEXT, tan TEXT, cin TEXT, gst_registration_type TEXT,
+      gst_state_code TEXT, date_of_incorporation TEXT, address TEXT, pincode TEXT,
+      whatsapp_opt_in INTEGER DEFAULT 1, onboarding_status TEXT DEFAULT 'Active',
+      client_status TEXT DEFAULT 'Active', relationship_status TEXT DEFAULT 'Client', relationship_manager TEXT, notes TEXT, fy_end_month INTEGER DEFAULT 3
     );
     CREATE TABLE IF NOT EXISTS compliance (
       compliance_id TEXT PRIMARY KEY, client_id TEXT, client_name TEXT, compliance_type TEXT,
-      period TEXT, due_date TEXT, status TEXT, filed_date TEXT, ack_number TEXT, assigned_to TEXT, notes TEXT
+      period TEXT, due_date TEXT, status TEXT, filed_date TEXT, ack_number TEXT, assigned_to TEXT, notes TEXT,
+      service_id TEXT, service_code TEXT, fy TEXT, stage TEXT DEFAULT 'documents',
+      stage_updated_at TEXT, preparer TEXT, reviewer TEXT, blocked_reason TEXT, completed_at TEXT, billed INTEGER DEFAULT 0
     );
+    -- Leads table removed — using client relationship_status field instead
     CREATE TABLE IF NOT EXISTS documents (
       doc_id TEXT PRIMARY KEY, client_id TEXT, client_name TEXT, document_name TEXT,
       status TEXT, requested_date TEXT, received_date TEXT, notes TEXT,
-      file_name TEXT, file_size INTEGER, file_path TEXT, uploaded_at TEXT
+      file_name TEXT, file_size INTEGER, file_path TEXT, uploaded_at TEXT,
+      request_id TEXT, compliance_id TEXT, service_code TEXT, category TEXT, fy TEXT, period TEXT,
+      reminder_count INTEGER DEFAULT 0, last_reminded_at TEXT, next_reminder_on TEXT,
+      verified_by TEXT, source TEXT DEFAULT 'manual', sort_order INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS invoices (
       invoice_id TEXT PRIMARY KEY, client_id TEXT, client_name TEXT, invoice_date TEXT, due_date TEXT,
       service_description TEXT, amount REAL, gst_amount REAL, total_amount REAL, paid_amount REAL DEFAULT 0,
-      status TEXT, paid_date TEXT
+      status TEXT, paid_date TEXT, service_id TEXT, compliance_id TEXT, period TEXT,
+      auto_generated INTEGER DEFAULT 0, reminder_count INTEGER DEFAULT 0, last_reminded_at TEXT
     );
     CREATE TABLE IF NOT EXISTS payments (
       payment_id TEXT PRIMARY KEY, invoice_id TEXT, client_name TEXT, amount REAL,
@@ -79,7 +100,8 @@ function migrate(db: DatabaseSync) {
     );
     CREATE TABLE IF NOT EXISTS messages (
       message_id TEXT PRIMARY KEY, channel TEXT, recipient_name TEXT, to_address TEXT,
-      subject TEXT, body TEXT, related_type TEXT, related_id TEXT, status TEXT, created_at TEXT
+      subject TEXT, body TEXT, related_type TEXT, related_id TEXT, status TEXT, created_at TEXT,
+      kind TEXT, reminder_number INTEGER, sent_at TEXT, error TEXT, automation_key TEXT
     );
     CREATE TABLE IF NOT EXISTS udin (
       udin_id TEXT PRIMARY KEY, udin TEXT, client_name TEXT, document_type TEXT,
@@ -123,6 +145,35 @@ function migrate(db: DatabaseSync) {
       action_id TEXT PRIMARY KEY, user_id TEXT, tool TEXT, args TEXT, title TEXT,
       status TEXT, result TEXT, created_at TEXT, decided_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS automation_rules (
+      rule_id TEXT PRIMARY KEY, name TEXT NOT NULL, action TEXT NOT NULL, params TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'auto', cadence TEXT NOT NULL DEFAULT 'daily',
+      enabled INTEGER NOT NULL DEFAULT 1, last_run_at TEXT, run_count INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT, created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS automation_runs (
+      run_id TEXT PRIMARY KEY, rule_id TEXT, rule_name TEXT, status TEXT, summary TEXT,
+      detail TEXT, actor TEXT, started_at TEXT, finished_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS client_services (
+      service_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, service_code TEXT NOT NULL,
+      service_name TEXT, line TEXT, frequency TEXT, fee REAL DEFAULT 0,
+      billing_cycle TEXT DEFAULT 'per_cycle', auto_invoice INTEGER DEFAULT 1,
+      owner TEXT, reviewer TEXT, status TEXT DEFAULT 'Active', start_date TEXT,
+      reminder_cap INTEGER DEFAULT 3, reminder_gap_days INTEGER DEFAULT 3,
+      next_cycle_on TEXT, created_at TEXT,
+      UNIQUE(client_id, service_code)
+    );
+    CREATE TABLE IF NOT EXISTS document_requests (
+      request_id TEXT PRIMARY KEY, client_id TEXT, client_name TEXT, compliance_id TEXT,
+      service_code TEXT, period TEXT, fy TEXT, due_date TEXT, status TEXT DEFAULT 'Open',
+      reminder_cap INTEGER DEFAULT 3, reminders_sent INTEGER DEFAULT 0,
+      last_sent_at TEXT, next_reminder_on TEXT, created_at TEXT, cleared_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS task_events (
+      event_id TEXT PRIMARY KEY, compliance_id TEXT, from_stage TEXT, to_stage TEXT,
+      actor TEXT, role TEXT, note TEXT, created_at TEXT
+    );
     CREATE INDEX IF NOT EXISTS idx_compliance_due ON compliance(due_date);
     CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
@@ -135,6 +186,15 @@ function migrate(db: DatabaseSync) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_udin_unique ON udin(udin);
     CREATE INDEX IF NOT EXISTS idx_ai_calls_user_day ON ai_calls(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_ai_actions_user ON ai_actions(user_id, status);
+    CREATE INDEX IF NOT EXISTS idx_automation_rules_enabled ON automation_rules(enabled, cadence);
+    CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);
+    CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
+    CREATE INDEX IF NOT EXISTS idx_client_services_client ON client_services(client_id);
+    CREATE INDEX IF NOT EXISTS idx_document_requests_status ON document_requests(status, next_reminder_on);
+    -- Workflow-era indexes on late-added columns (documents.request_id,
+    -- invoices.compliance_id, documents.source / compliance_id) are created
+    -- after ensureColumn — on a legacy database those columns do not exist
+    -- yet at this point and index creation would fail.
   `);
 
   // Columns added after the first release — safe to run on existing databases.
@@ -145,8 +205,1105 @@ function migrate(db: DatabaseSync) {
   ensureColumn(db, "invoices", "paid_amount", "REAL DEFAULT 0");
   ensureColumn(db, "proposals", "converted_client_id", "TEXT");
   ensureColumn(db, "users", "token_version", "INTEGER DEFAULT 0");
+
+  // Engagement workflow — additive so an existing practice database keeps working.
+  const additions: Array<[string, string, string]> = [
+    ["clients", "legal_name", "TEXT"],
+    ["clients", "trade_name", "TEXT"],
+    ["clients", "tan", "TEXT"],
+    ["clients", "cin", "TEXT"],
+    ["clients", "gst_registration_type", "TEXT"],
+    ["clients", "gst_state_code", "TEXT"],
+    ["clients", "date_of_incorporation", "TEXT"],
+    ["clients", "address", "TEXT"],
+    ["clients", "pincode", "TEXT"],
+    ["clients", "whatsapp_opt_in", "INTEGER DEFAULT 1"],
+    ["clients", "onboarding_status", "TEXT DEFAULT 'Active'"],
+    ["clients", "client_status", "TEXT DEFAULT 'Active'"],
+    ["clients", "relationship_status", "TEXT DEFAULT 'Client'"],
+    ["clients", "relationship_manager", "TEXT"],
+    ["clients", "notes", "TEXT"],
+    ["clients", "fy_end_month", "INTEGER DEFAULT 3"],
+    ["compliance", "service_id", "TEXT"],
+    ["compliance", "service_code", "TEXT"],
+    ["compliance", "fy", "TEXT"],
+    ["compliance", "stage", "TEXT DEFAULT 'documents'"],
+    ["compliance", "stage_updated_at", "TEXT"],
+    ["compliance", "preparer", "TEXT"],
+    ["compliance", "reviewer", "TEXT"],
+    ["compliance", "blocked_reason", "TEXT"],
+    ["compliance", "completed_at", "TEXT"],
+    ["compliance", "billed", "INTEGER DEFAULT 0"],
+    ["documents", "request_id", "TEXT"],
+    ["documents", "compliance_id", "TEXT"],
+    ["documents", "service_code", "TEXT"],
+    ["documents", "category", "TEXT"],
+    ["documents", "fy", "TEXT"],
+    ["documents", "period", "TEXT"],
+    ["documents", "reminder_count", "INTEGER DEFAULT 0"],
+    ["documents", "last_reminded_at", "TEXT"],
+    ["documents", "next_reminder_on", "TEXT"],
+    ["documents", "verified_by", "TEXT"],
+    ["documents", "source", "TEXT DEFAULT 'manual'"],
+    ["documents", "sort_order", "INTEGER DEFAULT 0"],
+    ["invoices", "service_id", "TEXT"],
+    ["invoices", "compliance_id", "TEXT"],
+    ["invoices", "period", "TEXT"],
+    ["invoices", "auto_generated", "INTEGER DEFAULT 0"],
+    ["invoices", "reminder_count", "INTEGER DEFAULT 0"],
+    ["invoices", "last_reminded_at", "TEXT"],
+    ["messages", "kind", "TEXT"],
+    ["messages", "reminder_number", "INTEGER"],
+    ["messages", "sent_at", "TEXT"],
+    ["messages", "error", "TEXT"],
+    ["messages", "automation_key", "TEXT"],
+    ["users", "service_lines", "TEXT"],
+    ["users", "phone", "TEXT"],
+  ];
+  for (const [table, column, definition] of additions) ensureColumn(db, table, column, definition);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_client_services_client ON client_services(client_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_document_requests_status ON document_requests(status, next_reminder_on)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_documents_request ON documents(request_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_task_events_compliance ON task_events(compliance_id, created_at)");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_compliance ON invoices(compliance_id) WHERE compliance_id IS NOT NULL AND compliance_id <> ''");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_checklist ON documents(client_id, compliance_id, document_name) WHERE source = 'checklist'");
+  db.exec("UPDATE clients SET whatsapp_opt_in = 1 WHERE whatsapp_opt_in IS NULL");
+  db.exec("UPDATE clients SET onboarding_status = 'Active' WHERE onboarding_status IS NULL");
+  db.exec("UPDATE clients SET client_status = 'Active' WHERE client_status IS NULL");
+  db.exec("UPDATE clients SET relationship_status = 'Client' WHERE relationship_status IS NULL");
+  db.exec("UPDATE compliance SET stage = 'documents' WHERE stage IS NULL");
+  db.exec("UPDATE compliance SET billed = 0 WHERE billed IS NULL");
   db.exec("UPDATE invoices SET paid_amount = total_amount WHERE status = 'Paid' AND (paid_amount IS NULL OR paid_amount = 0)");
   encryptLegacyIdentifiers(db);
+  applyMigrationLedger(db);
+}
+
+/**
+ * Versioned migration ledger. `ensureColumn`/`IF NOT EXISTS` calls above are
+ * the v3.0 bootstrap; the ledger (schema_migrations) starts there and tracks
+ * each subsequent migration under BEGIN IMMEDIATE, so a failed migration is
+ * rolled back whole rather than half-applied.
+ */
+interface LedgerEntry {
+  version: number;
+  name: string;
+  apply: (db: DatabaseSync) => void;
+}
+
+const PERSISTENCE_MIGRATIONS: LedgerEntry[] = [
+  {
+    version: 2,
+    name: "persistence-hardening: cycle uniqueness, file version history, durable job queue",
+    apply: (db) => {
+      // Re-point references off duplicate engagement cycles (same client +
+      // service + period), then drop the duplicates, so the unique cycle key
+      // below can exist as a real database constraint.
+      interface DuplicateRow { removed: string; kept: string }
+      const dupes = db
+        .prepare(
+          `SELECT a.compliance_id AS removed, b.compliance_id AS kept FROM compliance a
+           JOIN compliance b
+             ON a.client_id = b.client_id AND a.service_code = b.service_code AND a.period = b.period
+            AND a.rowid > b.rowid
+           WHERE a.service_code IS NOT NULL AND a.service_code <> ''`,
+        )
+        .all() as unknown as DuplicateRow[];
+      for (const d of dupes) {
+        for (const table of ["document_requests", "documents", "task_events", "invoices"]) {
+          db.prepare(`UPDATE ${table} SET compliance_id = ? WHERE compliance_id = ?`).run(d.kept, d.removed);
+        }
+        db.prepare("DELETE FROM compliance WHERE compliance_id = ?").run(d.removed);
+      }
+      if (dupes.length > 0) {
+        db.prepare("INSERT INTO audit_log (actor,action,entity_type,entity_id,detail,created_at) VALUES (?,?,?,?,?,?)").run(
+          "migration",
+          "MIGRATION_DEDUPE",
+          "compliance",
+          "",
+          `Merged ${dupes.length} duplicate engagement cycle(s) into their earliest sibling (migration 2)`,
+          new Date().toISOString(),
+        );
+      }
+
+      db.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_cycle
+         ON compliance(client_id, service_code, period)
+         WHERE service_code IS NOT NULL AND service_code <> ''`,
+      );
+
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS file_versions (
+          version_id TEXT PRIMARY KEY,
+          doc_id TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          object_key TEXT NOT NULL,
+          file_name TEXT NOT NULL,
+          size_bytes INTEGER NOT NULL,
+          checksum TEXT NOT NULL,
+          uploaded_by TEXT,
+          uploaded_at TEXT NOT NULL,
+          UNIQUE(doc_id, version)
+        ` + `)`,
+      );
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_file_versions_doc ON file_versions(doc_id, version)`);
+
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS jobs (
+          job_id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          logical_key TEXT,
+          run_at TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          attempts INTEGER NOT NULL DEFAULT 0,
+          max_attempts INTEGER NOT NULL DEFAULT 3,
+          payload TEXT NOT NULL DEFAULT '{}',
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )`,
+      );
+      // logical_key makes scheduling idempotent: the same logical event cannot
+      // be queued twice no matter how many callers race.
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_logical ON jobs(logical_key) WHERE logical_key IS NOT NULL`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_due ON jobs(status, run_at)`);
+
+      // Reminder/idempotency key on outbound messages: keep the newest row per
+      // key, then enforce uniqueness so a raced reminder cannot double-send.
+      db.exec(
+        `DELETE FROM messages
+         WHERE automation_key <> ''
+           AND automation_key IN (
+             SELECT automation_key FROM messages WHERE automation_key <> ''
+             GROUP BY automation_key HAVING COUNT(*) > 1
+           )
+           AND rowid NOT IN (
+             SELECT MAX(rowid) FROM messages WHERE automation_key <> '' GROUP BY automation_key
+           )`,
+      );
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_automation_key ON messages(automation_key) WHERE automation_key IS NOT NULL AND automation_key <> ''`);
+    },
+  },
+  {
+    version: 3,
+    name: "client-onboarding: registrations, service configuration, checklist templates, assignment history",
+    apply: (db) => {
+      for (const [column, definition] of [
+        ["date_of_birth", "TEXT"],
+        ["primary_contact_designation", "TEXT"],
+        ["whatsapp_number", "TEXT"],
+        ["billing_contact", "TEXT"],
+        ["authorised_representative", "TEXT"],
+        ["preferred_language", "TEXT DEFAULT 'English'"],
+        ["preferred_channel", "TEXT DEFAULT 'WhatsApp'"],
+        ["contact_verified_at", "TEXT"],
+        ["contact_verification_note", "TEXT"],
+        ["whatsapp_consent_at", "TEXT"],
+        ["whatsapp_consent_source", "TEXT"],
+        ["engagement_letter_status", "TEXT DEFAULT 'Not recorded'"],
+        ["engagement_letter_date", "TEXT"],
+        ["onboarding_stage", "TEXT DEFAULT 'review'"],
+        ["onboarding_completed_at", "TEXT"],
+        ["created_by", "TEXT"],
+        ["updated_by", "TEXT"],
+        ["updated_at", "TEXT"],
+      ] as Array<[string, string]>) {
+        ensureColumn(db, "clients", column, definition);
+      }
+      for (const [table, column, definition] of [
+        ["compliance", "registration_id", "TEXT"],
+        ["document_requests", "registration_id", "TEXT"],
+        ["document_requests", "template_version", "INTEGER"],
+        ["documents", "registration_id", "TEXT"],
+        ["documents", "template_version", "INTEGER"],
+      ] as Array<[string, string, string]>) {
+        ensureColumn(db, table, column, definition);
+      }
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS client_registrations (
+          registration_id TEXT PRIMARY KEY,
+          client_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          identifier_enc TEXT NOT NULL DEFAULT '',
+          identifier_hash TEXT NOT NULL DEFAULT '',
+          legal_name TEXT DEFAULT '',
+          state TEXT DEFAULT '',
+          state_code TEXT DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'Active',
+          effective_from TEXT DEFAULT '',
+          effective_to TEXT DEFAULT '',
+          place_of_business TEXT DEFAULT '',
+          filing_frequency TEXT DEFAULT '',
+          is_primary INTEGER DEFAULT 0,
+          verification_status TEXT NOT NULL DEFAULT 'User entered',
+          migration_note TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          created_by TEXT DEFAULT '',
+          updated_by TEXT DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_registrations_client ON client_registrations(client_id, kind);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_unique
+          ON client_registrations(client_id, kind, identifier_hash) WHERE identifier_hash <> '';
+
+        CREATE TABLE IF NOT EXISTS service_catalogue_settings (
+          service_code TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          default_frequency TEXT,
+          default_fee REAL,
+          requires_engagement_letter INTEGER NOT NULL DEFAULT 0,
+          requires_approval INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS checklist_templates (
+          template_id TEXT PRIMARY KEY,
+          service_code TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          items_json TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          created_by TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          UNIQUE(service_code, version)
+        );
+
+        CREATE TABLE IF NOT EXISTS client_service_assignments (
+          assignment_id TEXT PRIMARY KEY,
+          client_id TEXT NOT NULL,
+          service_id TEXT DEFAULT '',
+          role TEXT NOT NULL,
+          assignee TEXT NOT NULL,
+          assigned_by TEXT DEFAULT '',
+          assigned_at TEXT NOT NULL,
+          unassigned_at TEXT,
+          note TEXT DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_assignments_client ON client_service_assignments(client_id, role);
+        CREATE INDEX IF NOT EXISTS idx_assignments_service ON client_service_assignments(service_id);
+
+        CREATE TABLE IF NOT EXISTS onboarding_activations (
+          activation_id TEXT PRIMARY KEY,
+          client_id TEXT NOT NULL,
+          service_id TEXT NOT NULL,
+          idempotency_key TEXT NOT NULL UNIQUE,
+          detail TEXT DEFAULT '',
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS onboarding_tasks (
+          task_id TEXT PRIMARY KEY,
+          client_id TEXT NOT NULL,
+          service_id TEXT DEFAULT '',
+          label TEXT NOT NULL,
+          kind TEXT DEFAULT 'onboarding',
+          status TEXT NOT NULL DEFAULT 'Open',
+          due_date TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          completed_at TEXT,
+          UNIQUE(client_id, service_id, label)
+        );
+        CREATE INDEX IF NOT EXISTS idx_onboarding_tasks_client ON onboarding_tasks(client_id, status);
+      `);
+
+      // Rebuild client_services: the v1 UNIQUE(client_id, service_code) blocked
+      // a second GST registration's engagement. Preserve every row and id.
+      db.exec(`
+        CREATE TABLE client_services_v3 (
+          service_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, service_code TEXT NOT NULL,
+          service_name TEXT, line TEXT, frequency TEXT, fee REAL DEFAULT 0,
+          billing_cycle TEXT DEFAULT 'per_cycle', auto_invoice INTEGER DEFAULT 1,
+          owner TEXT, reviewer TEXT, status TEXT DEFAULT 'Active', start_date TEXT,
+          reminder_cap INTEGER DEFAULT 3, reminder_gap_days INTEGER DEFAULT 3,
+          next_cycle_on TEXT, created_at TEXT,
+          registration_id TEXT, manager TEXT, partner TEXT, end_date TEXT,
+          fee_model TEXT DEFAULT 'recurring', setup_fee REAL DEFAULT 0,
+          payment_terms_days INTEGER DEFAULT 30, fee_effective_from TEXT,
+          approval_stage TEXT DEFAULT 'none', paused_at TEXT, completed_at TEXT,
+          cancelled_at TEXT, updated_at TEXT, created_by TEXT, updated_by TEXT
+        );
+        INSERT INTO client_services_v3
+          (service_id, client_id, service_code, service_name, line, frequency, fee, billing_cycle,
+           auto_invoice, owner, reviewer, status, start_date, reminder_cap, reminder_gap_days,
+           next_cycle_on, created_at, fee_model, setup_fee, payment_terms_days, approval_stage, updated_at)
+        SELECT service_id, client_id, service_code, service_name, line, frequency, fee, billing_cycle,
+           auto_invoice, owner, reviewer, status, start_date, reminder_cap, reminder_gap_days,
+           next_cycle_on, created_at, 'recurring', 0, 30, 'none', created_at
+        FROM client_services;
+        DROP TABLE client_services;
+        ALTER TABLE client_services_v3 RENAME TO client_services;
+        CREATE INDEX IF NOT EXISTS idx_client_services_client ON client_services(client_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_client_services_unique
+          ON client_services(client_id, service_code, IFNULL(registration_id, ''));
+      `);
+
+      const now = new Date().toISOString();
+      const setting = db.prepare(
+        "INSERT OR IGNORE INTO service_catalogue_settings (service_code,enabled,default_frequency,default_fee,requires_engagement_letter,requires_approval,updated_at) VALUES (?,?,?,?,?,?,?)",
+      );
+      const template = db.prepare(
+        "INSERT OR IGNORE INTO checklist_templates (template_id,service_code,version,name,items_json,active,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",
+      );
+      for (const def of SERVICES) {
+        setting.run(def.code, 1, def.frequency, def.defaultFee, 0, 0, now);
+        template.run(
+          `TPL-${def.code.toUpperCase()}-1`,
+          def.code,
+          1,
+          `${def.name} checklist`,
+          JSON.stringify(def.checklist.map((item) => ({ ...item, mandatory: !item.optional }))),
+          1,
+          "system",
+          now,
+        );
+      }
+
+      // Backfill one GST registration per legacy client GSTIN. Invalid checksums
+      // are preserved but flagged for authorised review — never silently dropped
+      // or "verified".
+      const legacy = db
+        .prepare("SELECT client_id, legal_name, name, gst_number, gst_state_code, created_at, created_by FROM clients WHERE gst_number IS NOT NULL AND gst_number <> ''")
+        .all() as unknown as Array<Record<string, string | null>>;
+      let backfilled = 0;
+      let flagged = 0;
+      const existingRegistration = db.prepare("SELECT COUNT(*) AS n FROM client_registrations WHERE client_id = ? AND kind = 'GST'");
+      const insertRegistration = db.prepare(
+        `INSERT INTO client_registrations (registration_id,client_id,kind,identifier_enc,identifier_hash,legal_name,state,state_code,status,
+         effective_from,effective_to,place_of_business,filing_frequency,is_primary,verification_status,migration_note,created_at,updated_at,created_by,updated_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      );
+      for (const row of legacy) {
+        const clientId = String(row.client_id);
+        if (Number((existingRegistration.get(clientId) as { n: number }).n) > 0) continue;
+        const gstin = decryptField(row.gst_number).toUpperCase().trim();
+        if (!gstin) continue;
+        const invalid = validateGstin(gstin);
+        const info = inspectGstin(gstin);
+        const status = invalid ? "Needs review" : "Active";
+        if (invalid) flagged++;
+        insertRegistration.run(
+          `REG-M3-${String(backfilled + 1).padStart(4, "0")}`,
+          clientId,
+          "GST",
+          encryptField(gstin),
+          createHash("sha256").update(gstin).digest("hex"),
+          String(row.legal_name || row.name || ""),
+          info.state || String(row.gst_state_code || ""),
+          info.stateCode || String(row.gst_state_code || ""),
+          status,
+          "",
+          "",
+          "",
+          "",
+          1,
+          "User entered",
+          invalid
+            ? `Migrated from the legacy client GSTIN field — checksum failed (${invalid}); review required.`
+            : "Migrated from the legacy client GSTIN field; not externally verified.",
+          now,
+          now,
+          "migration",
+          "migration",
+        );
+        backfilled++;
+      }
+      const legacyClients = Number((db.prepare("SELECT COUNT(*) AS n FROM clients").get() as { n: number }).n);
+      const report = {
+        at: now,
+        legacy_clients: legacyClients,
+        gst_registrations_backfilled: backfilled,
+        flagged_for_review: flagged,
+        ambiguous: 0,
+      };
+      db.prepare("INSERT INTO settings (key,value) VALUES ('client_migration_report_v1', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(JSON.stringify(report));
+      db.exec("UPDATE clients SET onboarding_stage = 'review' WHERE onboarding_stage IS NULL OR onboarding_stage = ''");
+      db.exec("UPDATE clients SET preferred_language = 'English' WHERE preferred_language IS NULL OR preferred_language = ''");
+      db.exec("UPDATE clients SET preferred_channel = 'WhatsApp' WHERE preferred_channel IS NULL OR preferred_channel = ''");
+      db.exec("UPDATE clients SET updated_at = created_at WHERE updated_at IS NULL");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_compliance_registration ON compliance(registration_id)");
+      // A client with two GSTINs runs the same service code twice per period;
+      // the registration is part of the cycle key. Existing rows all have a
+      // NULL registration, so the earlier uniqueness guarantee is preserved.
+      db.exec("DROP INDEX IF EXISTS idx_compliance_cycle");
+      db.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_compliance_cycle
+         ON compliance(client_id, service_code, period, IFNULL(registration_id, ''))
+         WHERE service_code IS NOT NULL AND service_code <> ''`,
+      );
+    },
+  },
+  {
+    version: 4,
+    name: "recurring-engagement-engine: period model, due-date rules, append-only status history, generation runs",
+    apply: (db) => {
+      for (const [column, definition] of [
+        ["period_type", "TEXT"],
+        ["period_start", "TEXT"],
+        ["period_end", "TEXT"],
+        ["assessment_year", "TEXT"],
+        ["internal_target_date", "TEXT"],
+        ["statutory_due_date", "TEXT"],
+        ["due_rule_id", "TEXT"],
+        ["due_rule_version", "INTEGER"],
+        ["due_date_source", "TEXT DEFAULT ''"],
+        ["due_date_verified", "INTEGER DEFAULT 0"],
+        ["statutory_rule_status", "TEXT DEFAULT 'unverified'"],
+        ["generation_source", "TEXT DEFAULT 'migration'"],
+        ["generated_at", "TEXT"],
+        ["filing_recorded_at", "TEXT"],
+        ["filing_reference", "TEXT"],
+        ["filing_recorded_by", "TEXT DEFAULT ''"],
+        ["filing_confirmed_by_integration", "INTEGER DEFAULT 0"],
+        ["filing_notes", "TEXT DEFAULT ''"],
+      ] as Array<[string, string]>) {
+        ensureColumn(db, "compliance", column, definition);
+      }
+      for (const [column, definition] of [
+        ["priority", "TEXT DEFAULT 'Normal'"],
+        ["escalation_days", "INTEGER DEFAULT 2"],
+      ] as Array<[string, string]>) {
+        ensureColumn(db, "client_services", column, definition);
+      }
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS due_date_rules (
+          rule_id TEXT PRIMARY KEY,
+          service_code TEXT NOT NULL,
+          frequency TEXT NOT NULL,
+          effective_from TEXT NOT NULL,
+          effective_to TEXT NOT NULL DEFAULT '',
+          due_month_offset INTEGER NOT NULL,
+          due_day INTEGER NOT NULL,
+          internal_lead_days INTEGER NOT NULL DEFAULT 0,
+          source TEXT NOT NULL,
+          authority_reference TEXT NOT NULL DEFAULT '',
+          verification_status TEXT NOT NULL DEFAULT 'unverified',
+          verified_at TEXT,
+          verified_by TEXT NOT NULL DEFAULT '',
+          version INTEGER NOT NULL DEFAULT 1,
+          notes TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_due_rules_lookup ON due_date_rules(service_code, frequency, verification_status);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_due_rules_version ON due_date_rules(service_code, frequency, version);
+
+        CREATE TABLE IF NOT EXISTS compliance_status_history (
+          history_id TEXT PRIMARY KEY,
+          compliance_id TEXT NOT NULL,
+          from_status TEXT,
+          to_status TEXT NOT NULL,
+          from_stage TEXT,
+          to_stage TEXT,
+          actor TEXT NOT NULL,
+          role TEXT NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_status_history_task ON compliance_status_history(compliance_id, created_at);
+        CREATE TRIGGER IF NOT EXISTS trg_status_history_no_update
+          BEFORE UPDATE ON compliance_status_history
+          BEGIN SELECT RAISE(ABORT, 'compliance status history is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_status_history_no_delete
+          BEFORE DELETE ON compliance_status_history
+          BEGIN SELECT RAISE(ABORT, 'compliance status history is append-only'); END;
+
+        CREATE TABLE IF NOT EXISTS engagement_generation_runs (
+          run_id TEXT PRIMARY KEY,
+          trigger TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          window_from TEXT NOT NULL,
+          window_to TEXT NOT NULL,
+          client_id TEXT NOT NULL DEFAULT '',
+          service_id TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL,
+          processed INTEGER NOT NULL DEFAULT 0,
+          created INTEGER NOT NULL DEFAULT 0,
+          skipped INTEGER NOT NULL DEFAULT 0,
+          failed INTEGER NOT NULL DEFAULT 0,
+          warnings INTEGER NOT NULL DEFAULT 0,
+          detail TEXT NOT NULL DEFAULT '{}',
+          started_at TEXT NOT NULL,
+          finished_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_generation_runs_started ON engagement_generation_runs(started_at);
+      `);
+
+      const now = new Date().toISOString();
+      const insertRule = db.prepare(
+        `INSERT OR IGNORE INTO due_date_rules
+         (rule_id,service_code,frequency,effective_from,effective_to,due_month_offset,due_day,internal_lead_days,
+          source,authority_reference,verification_status,verified_at,verified_by,version,notes,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      );
+      for (const def of SERVICES) {
+        insertRule.run(
+          `DDR-${def.code.toUpperCase()}-${def.frequency.toUpperCase()}-V1`,
+          def.code,
+          def.frequency,
+          "2020-04-01",
+          "",
+          def.dueMonthOffset,
+          def.dueDay,
+          0,
+          "Product default schedule — not verified against a statutory source",
+          "",
+          "unverified",
+          null,
+          "",
+          1,
+          "Generated with the recurrence engine. A partner must verify the rule before it can be shown as a statutory due date.",
+          now,
+          now,
+        );
+      }
+
+      db.exec("CREATE INDEX IF NOT EXISTS idx_compliance_internal_target ON compliance(internal_target_date)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_compliance_statutory ON compliance(statutory_due_date)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_compliance_service_period ON compliance(service_id, period)");
+
+      // Backfill the period model without changing a single existing id,
+      // service assignment, filed date or acknowledgement. Legacy due dates
+      // become internal targets; no legacy row is labelled legally verified.
+      const rows = db
+        .prepare(
+          `SELECT compliance_id, client_id, compliance_type, period, due_date, fy, status, stage, ack_number,
+                  filed_date, registration_id, service_id, service_code, generated_at, stage_updated_at, completed_at
+           FROM compliance`,
+        )
+        .all() as unknown as Array<Record<string, string | null>>;
+      const serviceRows = db.prepare("SELECT service_id, frequency, start_date, end_date FROM client_services").all() as unknown as Array<Record<string, string | null>>;
+      const serviceById = new Map(serviceRows.map((row) => [String(row.service_id || ""), row]));
+      const update = db.prepare(
+        `UPDATE compliance SET period_type=?, period_start=?, period_end=?, assessment_year=?, internal_target_date=?,
+          statutory_due_date=NULL, due_rule_id=?, due_rule_version=?, due_date_source=?, due_date_verified=0,
+          statutory_rule_status='unverified', generation_source=COALESCE(NULLIF(generation_source,''),'migration'),
+          generated_at=COALESCE(generated_at, ?), filing_reference=COALESCE(NULLIF(filing_reference,''), ack_number),
+          filing_recorded_at=COALESCE(filing_recorded_at, filed_date), filing_confirmed_by_integration=0
+         WHERE compliance_id=?`,
+      );
+      const history = db.prepare(
+        `INSERT OR IGNORE INTO compliance_status_history
+         (history_id,compliance_id,from_status,to_status,from_stage,to_stage,actor,role,reason,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      );
+      const report = { at: now, scanned: rows.length, period_backfilled: 0, ambiguous_periods: 0, missing_service_code: 0, duplicate_labels: 0 };
+      const seen = new Set<string>();
+      for (const row of rows) {
+        const complianceId = String(row.compliance_id);
+        const catalogCode = String(row.service_code || "");
+        const def = SERVICES.find((s) => s.code === catalogCode);
+        if (!catalogCode) report.missing_service_code++;
+        const service = serviceById.get(String(row.service_id || ""));
+        const frequency = (service?.frequency as string) || def?.frequency || "one_time";
+        const period = String(row.period || "Current");
+        const dueDate = String(row.due_date || "");
+        const parsed = legacyPeriod(period, frequency, dueDate);
+        if (!parsed) report.ambiguous_periods++;
+        const periodType = frequency === "monthly" || frequency === "quarterly" || frequency === "half_yearly" || frequency === "annual" ? frequency : "one_time";
+        const fy = String(row.fy || "") || (parsed ? legacyFy(parsed.periodEnd) : "") || (dueDate ? legacyFy(dueDate) : "");
+        const assessment = catalogCode === "itr" && fy ? legacyNextAy(fy) : null;
+        const dedupeKey = `${row.client_id}|${catalogCode}|${period}|${row.registration_id || ""}`;
+        if (seen.has(dedupeKey)) report.duplicate_labels++;
+        seen.add(dedupeKey);
+        update.run(
+          periodType,
+          parsed?.periodStart ?? "",
+          parsed?.periodEnd ?? "",
+          assessment,
+          dueDate,
+          def ? `DDR-${def.code.toUpperCase()}-${def.frequency.toUpperCase()}-V1` : null,
+          def ? 1 : null,
+          dueDate ? "Legacy due date migrated as an unverified internal target" : "No due date recorded",
+          row.generated_at || row.stage_updated_at || now,
+          complianceId,
+        );
+        const toStage = row.stage || (row.status === "Filed" ? "done" : "documents");
+        history.run(
+          `HIST-M4-${complianceId}`,
+          complianceId,
+          null,
+          row.status || "Pending",
+          null,
+          toStage,
+          "migration",
+          "system",
+          "Baseline history created while migrating to the recurring engagement model",
+          row.stage_updated_at || row.filed_date || now,
+        );
+        if (parsed) report.period_backfilled++;
+      }
+      db.prepare(
+        "INSERT INTO settings (key,value) VALUES ('engagement_migration_report_v1', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+      ).run(JSON.stringify(report));
+    },
+  },
+  {
+    version: 5,
+    name: "document-management: version supersession, review history, classification, soft archival",
+    apply: (db) => {
+      for (const [table, column, definition] of [
+        ["file_versions", "status", "TEXT NOT NULL DEFAULT 'superseded'"],
+        ["file_versions", "change_reason", "TEXT NOT NULL DEFAULT ''"],
+        ["file_versions", "superseded_at", "TEXT"],
+        ["documents", "review_reason", "TEXT NOT NULL DEFAULT ''"],
+        ["documents", "reviewed_at", "TEXT"],
+        ["documents", "archived_at", "TEXT"],
+        ["documents", "needs_classification", "INTEGER NOT NULL DEFAULT 0"],
+        ["document_requests", "missing_note", "TEXT NOT NULL DEFAULT ''"],
+      ] as Array<[string, string, string]>) {
+        ensureColumn(db, table, column, definition);
+      }
+
+      // The newest version of every document is the current one; everything
+      // else is superseded history. Version numbers are monotonic per doc
+      // (MAX(version)+1), so the highest rowid is the current version.
+      // Existing rows get no fabricated review state — received/verified
+      // flags on the documents row stay exactly as they are.
+      db.exec("UPDATE file_versions SET status='superseded' WHERE status IS NULL OR status = ''");
+      db.exec("UPDATE file_versions SET status='current' WHERE rowid IN (SELECT MAX(rowid) FROM file_versions GROUP BY doc_id)");
+
+      // Soft-archival is off by default: nothing becomes archived during
+      // migration just because the column exists now.
+      db.exec("UPDATE documents SET needs_classification = 0 WHERE needs_classification IS NULL");
+      db.exec("UPDATE document_requests SET missing_note = '' WHERE missing_note IS NULL");
+
+      // Append-only review history, mirroring compliance_status_history.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS document_status_history (
+          history_id TEXT PRIMARY KEY,
+          doc_id TEXT NOT NULL,
+          from_status TEXT,
+          to_status TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'system',
+          reason TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_doc_history_doc ON document_status_history(doc_id, created_at);
+        CREATE TRIGGER IF NOT EXISTS trg_doc_history_no_update
+          BEFORE UPDATE ON document_status_history
+          BEGIN SELECT RAISE(ABORT, 'document status history is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_doc_history_no_delete
+          BEFORE DELETE ON document_status_history
+          BEGIN SELECT RAISE(ABORT, 'document status history is append-only'); END;
+      `);
+
+      db.exec("CREATE INDEX IF NOT EXISTS idx_documents_client ON documents(client_id, fy)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_documents_archived ON documents(archived_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_file_versions_status ON file_versions(doc_id, status)");
+    },
+  },
+  {
+    version: 6,
+    name: "staff-work-management: per-task assignment ledger and task blockers",
+    apply: (db) => {
+      // Append-only assignment ledger. Every preparer/reviewer set or change on
+      // an engagement records the previous assignee, the new assignee, the
+      // actor and the reason. History is never overwritten by the next change.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_assignments (
+          assignment_id TEXT PRIMARY KEY,
+          compliance_id TEXT NOT NULL,
+          client_id TEXT NOT NULL DEFAULT '',
+          responsibility TEXT NOT NULL,
+          previous_assignee TEXT NOT NULL DEFAULT '',
+          new_assignee TEXT NOT NULL DEFAULT '',
+          actor TEXT NOT NULL,
+          actor_role TEXT NOT NULL DEFAULT '',
+          reason TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_assignments_task ON task_assignments(compliance_id, created_at);
+        CREATE TRIGGER IF NOT EXISTS trg_task_assignments_no_update
+          BEFORE UPDATE ON task_assignments
+          BEGIN SELECT RAISE(ABORT, 'task assignment history is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_task_assignments_no_delete
+          BEFORE DELETE ON task_assignments
+          BEGIN SELECT RAISE(ABORT, 'task assignment history is append-only'); END;
+      `);
+
+      // Explicit blockers: a work item that cannot proceed for a recorded
+      // reason, owned by a named person until it is resolved.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_blockers (
+          blocker_id TEXT PRIMARY KEY,
+          compliance_id TEXT NOT NULL,
+          client_id TEXT NOT NULL DEFAULT '',
+          category TEXT NOT NULL DEFAULT 'other',
+          description TEXT NOT NULL DEFAULT '',
+          owner TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'open',
+          blocks_progress INTEGER NOT NULL DEFAULT 1,
+          created_by TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          resolved_by TEXT,
+          resolved_at TEXT,
+          resolution_note TEXT NOT NULL DEFAULT '',
+          reopened_at TEXT,
+          reopened_by TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_blockers_task ON task_blockers(compliance_id, status);
+        CREATE INDEX IF NOT EXISTS idx_task_blockers_owner ON task_blockers(owner, status);
+      `);
+    },
+  },
+  {
+    version: 7,
+    name: "billing-v2: line items, invoice lifecycle, idempotency, payments reconciliation, credit notes, billing settings and tax treatments",
+    apply: (db) => {
+      // ── Firm-level billing configuration (one row, id 1) ─────────────
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS billing_settings (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          billing_enabled INTEGER NOT NULL DEFAULT 1,
+          legal_name TEXT NOT NULL DEFAULT '',
+          display_name TEXT NOT NULL DEFAULT '',
+          address TEXT NOT NULL DEFAULT '',
+          contact TEXT NOT NULL DEFAULT '',
+          pan TEXT NOT NULL DEFAULT '',
+          gstin TEXT NOT NULL DEFAULT '',
+          invoice_prefix TEXT NOT NULL DEFAULT 'NV',
+          credit_note_prefix TEXT NOT NULL DEFAULT 'NC',
+          numbering_policy TEXT NOT NULL DEFAULT 'per_fy',
+          currency TEXT NOT NULL DEFAULT 'INR',
+          default_payment_terms_days INTEGER NOT NULL DEFAULT 15,
+          internal_billing_contact TEXT NOT NULL DEFAULT '',
+          invoice_footer TEXT NOT NULL DEFAULT '',
+          payment_instructions TEXT NOT NULL DEFAULT '',
+          bank_details TEXT NOT NULL DEFAULT '',
+          invoice_grouping TEXT NOT NULL DEFAULT 'one_per_event',
+          approval_required_for_auto INTEGER NOT NULL DEFAULT 1,
+          approval_required_for_manual INTEGER NOT NULL DEFAULT 0,
+          deliver_on_issue INTEGER NOT NULL DEFAULT 1,
+          aging_buckets TEXT NOT NULL DEFAULT '[30,60,90]',
+          updated_at TEXT NOT NULL DEFAULT '',
+          updated_by TEXT NOT NULL DEFAULT ''
+        );
+      `);
+      db.prepare(`INSERT OR IGNORE INTO billing_settings (id, updated_at, updated_by) VALUES (1, '', '')`).run();
+      // Default payment terms carry the legacy invoice_due_days when the firm
+      // already tuned it; nothing else is invented here.
+      const legacyDue = db.prepare("SELECT value AS v FROM settings WHERE key = 'invoice_due_days'").get() as unknown as { v: string } | undefined;
+      const legacyDays = legacyDue ? Number(legacyDue.v) : NaN;
+      if (Number.isFinite(legacyDays) && legacyDays >= 1 && legacyDays <= 90) {
+        db.prepare("UPDATE billing_settings SET default_payment_terms_days = ? WHERE id = 1").run(Math.round(legacyDays));
+      }
+
+      // ── Configurable tax treatments. No rate is invented by code: a GST
+      // treatment seeded without a rate blocks issuance until the firm
+      // configures one through the settings API. ─────────────────────────
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tax_treatments (
+          treatment_id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'none',
+          rate_bp INTEGER,
+          active INTEGER NOT NULL DEFAULT 1,
+          note TEXT NOT NULL DEFAULT '',
+          updated_by TEXT NOT NULL DEFAULT '',
+          updated_at TEXT NOT NULL
+        );
+      `);
+      const now7 = new Date().toISOString();
+      db.prepare(
+        "INSERT OR IGNORE INTO tax_treatments (treatment_id,name,kind,rate_bp,active,note,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+      ).run("TAX-NONE", "No GST charged", "none", null, 1, "Fee is invoiced without any tax component. Correct only where the firm has determined the supply is not taxable.", "migration", now7);
+      db.prepare(
+        "INSERT OR IGNORE INTO tax_treatments (treatment_id,name,kind,rate_bp,active,note,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+      ).run("TAX-GST-UNCONFIGURED", "GST — rate not configured yet", "gst", null, 1, "A partner must configure the rate (basis points) through billing settings before invoices using this treatment can be issued.", "migration", now7);
+
+      // ── Invoice lifecycle, numbering and idempotency columns ────────────
+      for (const [column, definition] of [
+        ["invoice_number", "TEXT"],
+        ["fy", "TEXT"],
+        ["notes", "TEXT NOT NULL DEFAULT ''"],
+        ["lifecycle", "TEXT NOT NULL DEFAULT ''"],
+        ["billing_event_key", "TEXT"],
+        ["approved_by", "TEXT"],
+        ["approved_at", "TEXT"],
+        ["issued_by", "TEXT"],
+        ["issued_at", "TEXT"],
+        ["taxable_paise", "INTEGER"],
+        ["gst_paise", "INTEGER"],
+        ["total_paise", "INTEGER"],
+        ["paid_paise", "INTEGER"],
+        ["credit_paise", "INTEGER NOT NULL DEFAULT 0"],
+        ["issue_snapshot", "TEXT"],
+        ["cancelled_at", "TEXT"],
+        ["cancelled_by", "TEXT"],
+        ["cancel_reason", "TEXT"],
+        ["pdf_object_key", "TEXT"],
+        ["pdf_checksum", "TEXT"],
+        ["pdf_size", "INTEGER"],
+        ["pdf_version", "INTEGER NOT NULL DEFAULT 0"],
+        ["pdf_generated_at", "TEXT"],
+      ] as Array<[string, string]>) {
+        ensureColumn(db, "invoices", column, definition);
+      }
+      for (const [column, definition] of [
+        ["status", "TEXT NOT NULL DEFAULT 'Confirmed'"],
+        ["recorded_by", "TEXT"],
+        ["reversal_of", "TEXT"],
+      ] as Array<[string, string]>) {
+        ensureColumn(db, "payments", column, definition);
+      }
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS invoice_lines (
+          line_id TEXT PRIMARY KEY,
+          invoice_id TEXT NOT NULL,
+          seq INTEGER NOT NULL DEFAULT 0,
+          description TEXT NOT NULL DEFAULT '',
+          service_code TEXT NOT NULL DEFAULT '',
+          client_service_id TEXT NOT NULL DEFAULT '',
+          compliance_id TEXT NOT NULL DEFAULT '',
+          registration_id TEXT NOT NULL DEFAULT '',
+          quantity INTEGER NOT NULL DEFAULT 1,
+          unit_price_paise INTEGER NOT NULL DEFAULT 0,
+          discount_paise INTEGER NOT NULL DEFAULT 0,
+          taxable_paise INTEGER NOT NULL DEFAULT 0,
+          treatment_id TEXT NOT NULL DEFAULT '',
+          tax_kind TEXT NOT NULL DEFAULT 'none',
+          gst_rate_bp INTEGER,
+          cgst_paise INTEGER NOT NULL DEFAULT 0,
+          sgst_paise INTEGER NOT NULL DEFAULT 0,
+          igst_paise INTEGER NOT NULL DEFAULT 0,
+          line_total_paise INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_invoice_lines_invoice ON invoice_lines(invoice_id, seq);
+
+        CREATE TABLE IF NOT EXISTS credit_notes (
+          credit_note_id TEXT PRIMARY KEY,
+          invoice_id TEXT NOT NULL,
+          number TEXT NOT NULL,
+          fy TEXT NOT NULL DEFAULT '',
+          reason TEXT NOT NULL DEFAULT '',
+          taxable_paise INTEGER NOT NULL DEFAULT 0,
+          gst_paise INTEGER NOT NULL DEFAULT 0,
+          total_paise INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'Issued',
+          created_by TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          voided_at TEXT,
+          voided_by TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_credit_notes_number ON credit_notes(number);
+        CREATE INDEX IF NOT EXISTS idx_credit_notes_invoice ON credit_notes(invoice_id);
+
+        CREATE TABLE IF NOT EXISTS invoice_events (
+          event_id TEXT PRIMARY KEY,
+          invoice_id TEXT NOT NULL,
+          event TEXT NOT NULL,
+          actor TEXT NOT NULL DEFAULT '',
+          role TEXT NOT NULL DEFAULT 'system',
+          detail TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_invoice_events_invoice ON invoice_events(invoice_id, created_at);
+        CREATE TRIGGER IF NOT EXISTS trg_invoice_events_no_update
+          BEFORE UPDATE ON invoice_events
+          BEGIN SELECT RAISE(ABORT, 'invoice event history is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS trg_invoice_events_no_delete
+          BEFORE DELETE ON invoice_events
+          BEGIN SELECT RAISE(ABORT, 'invoice event history is append-only'); END;
+      `);
+
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number) WHERE invoice_number IS NOT NULL AND invoice_number <> ''");
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_event ON invoices(billing_event_key) WHERE billing_event_key IS NOT NULL AND billing_event_key <> ''");
+
+      // ── Legacy invoice backfill: numbers and amounts are preserved
+      // exactly as issued; lifecycle is derived, nothing is re-taxed. ---
+      const legacy = db
+        .prepare("SELECT invoice_id, client_id, invoice_date, gst_amount, amount, total_amount, paid_amount, status, compliance_id FROM invoices")
+        .all() as unknown as Array<Record<string, string | number | null>>;
+      const backfill = db.prepare(
+        `UPDATE invoices SET lifecycle=?, invoice_number=?, fy=?, taxable_paise=?, gst_paise=?, total_paise=?, paid_paise=?, billing_event_key=?
+         WHERE invoice_id=?`,
+      );
+      const usedEvents = new Set(db.prepare("SELECT billing_event_key FROM invoices WHERE billing_event_key IS NOT NULL AND billing_event_key <> ''").all().map((r: Record<string, unknown>) => String((r as { billing_event_key?: string }).billing_event_key)));
+      for (const row of legacy) {
+        const id = String(row.invoice_id);
+        const eventKey = row.compliance_id ? `completion:${row.compliance_id}` : `legacy:${id}`;
+        if (usedEvents.has(eventKey)) {
+          // Collision (legacy duplicates): suffix keeps the row addressable
+          // without disturbing any number in the unique indexes.
+          usedEvents.add(eventKey);
+          db.prepare("UPDATE invoices SET lifecycle=?, invoice_number=? WHERE invoice_id=?").run(
+            row.status === "Cancelled" ? "cancelled" : "issued", id, id,
+          );
+          continue;
+        }
+        usedEvents.add(eventKey);
+        backfill.run(
+          row.status === "Cancelled" ? "cancelled" : "issued",
+          id,
+          fyForDateSafe(String(row.invoice_date || "")),
+          Math.round(Number(row.amount || 0) * 100),
+          Math.round(Number(row.gst_amount || 0) * 100),
+          Math.round(Number(row.total_amount || 0) * 100),
+          Math.round(Number(row.paid_amount || 0) * 100),
+          eventKey,
+          id,
+        );
+      }
+      db.exec("CREATE INDEX IF NOT EXISTS idx_invoices_lifecycle ON invoices(lifecycle, status)");
+    },
+  },
+];
+
+function fyForDateSafe(iso: string): string {
+  const year = Number(iso.slice(0, 4));
+  const month = Number(iso.slice(5, 7));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !year) return "";
+  const start = month >= 4 ? year : year - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
+const LEGACY_MONTHS: Record<string, number> = {
+  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+  may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7, sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11,
+};
+
+function legacyYmd(year: number, monthIndex: number, day: number): string {
+  const last = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
+}
+
+function legacyFy(iso: string): string {
+  const year = Number(iso.slice(0, 4));
+  const month = Number(iso.slice(5, 7));
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return "";
+  const start = month >= 4 ? year : year - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
+function legacyNextAy(fy: string): string {
+  const start = Number(fy.slice(0, 4));
+  if (!Number.isFinite(start)) return "";
+  return `${start + 1}-${String((start + 2) % 100).padStart(2, "0")}`;
+}
+
+/** Best-effort period bounds for rows created before the explicit period model. */
+function legacyPeriod(period: string, frequency: string, dueDate: string): { periodStart: string; periodEnd: string } | null {
+  const text = period.trim();
+  const fyMatch = text.match(/(?:FY\s*)?(\d{4})[-\/](\d{2,4})/i);
+  if (/\bA[YS]\b/i.test(text) && fyMatch) {
+    const start = Number(fyMatch[1]);
+    const fyStartYear = start - 1;
+    const endYear = fyStartYear + 1;
+    return { periodStart: `${fyStartYear}-04-01`, periodEnd: `${endYear}-03-31` };
+  }
+  if (/\bH[12]\b/i.test(text) && fyMatch) {
+    const start = Number(fyMatch[1]);
+    const second = /\bH2\b/i.test(text);
+    return second
+      ? { periodStart: `${start}-10-01`, periodEnd: `${start + 1}-03-31` }
+      : { periodStart: `${start}-04-01`, periodEnd: `${start}-09-30` };
+  }
+  const quarter = text.match(/\bQ([1-4])\b/i);
+  if (quarter && fyMatch) {
+    const start = Number(fyMatch[1]);
+    const q = Number(quarter[1]);
+    const endMonth = q * 3; // Q1 -> June (6), Q2 -> September (9) ...
+    const endYear = endMonth <= 9 ? start : start + 1;
+    const monthIndex = ((endMonth - 1) % 12 + 12) % 12;
+    return { periodStart: legacyYmd(endYear, monthIndex - 2, 1), periodEnd: legacyYmd(endYear, monthIndex, 31) };
+  }
+  const month = text.match(/\b([A-Za-z]{3,9})\s+(\d{4})\b/);
+  if (month && LEGACY_MONTHS[month[1].toLowerCase()] !== undefined) {
+    const monthIndex = LEGACY_MONTHS[month[1].toLowerCase()]!;
+    const year = Number(month[2]);
+    return { periodStart: legacyYmd(year, monthIndex, 1), periodEnd: legacyYmd(year, monthIndex, 31) };
+  }
+  if (/FY\s*\d{4}/i.test(text) && fyMatch) {
+    const start = Number(fyMatch[1]);
+    return { periodStart: `${start}-04-01`, periodEnd: `${start + 1}-03-31` };
+  }
+  if (frequency === "annual" && dueDate) {
+    const year = Number(dueDate.slice(0, 4));
+    const month = Number(dueDate.slice(5, 7));
+    const fyEndYear = month < 4 ? year : year + 1;
+    return { periodStart: `${fyEndYear - 1}-04-01`, periodEnd: `${fyEndYear}-03-31` };
+  }
+  if (frequency === "monthly" && dueDate) {
+    const year = Number(dueDate.slice(0, 4));
+    const month = Number(dueDate.slice(5, 7)) - 2;
+    const dt = new Date(Date.UTC(year, month, 1));
+    return { periodStart: legacyYmd(dt.getUTCFullYear(), dt.getUTCMonth(), 1), periodEnd: legacyYmd(dt.getUTCFullYear(), dt.getUTCMonth(), 31) };
+  }
+  return null;
+}
+
+function applyMigrationLedger(db: DatabaseSync) {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    )`,
+  );
+  const appliedRows = db.prepare("SELECT version FROM schema_migrations").all() as unknown as Array<{ version: number }>;
+  const applied = new Set(appliedRows.map((r) => r.version));
+  // The in-code bootstrap above ran before the ledger existed; record it as
+  // migration 1 so the ledger is complete from the first run on this codebase.
+  if (!applied.has(1)) {
+    db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (1, ?, ?)").run(
+      "v3.0 bootstrap (ensureColumn chain + workflow backfills)",
+      new Date().toISOString(),
+    );
+    applied.add(1);
+  }
+  for (const migration of PERSISTENCE_MIGRATIONS) {
+    if (applied.has(migration.version)) continue;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      migration.apply(db);
+      db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)").run(
+        migration.version,
+        migration.name,
+        new Date().toISOString(),
+      );
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw new Error(`Migration ${migration.version} (${migration.name}) failed: ${(err as Error).message}`);
+    }
+  }
+}
+
+/** Safe migration status for the health endpoint: versions only, no SQL. */
+export function getMigrationStatus(): { applied: number[]; pending: number } {
+  const db = getDb();
+  const rows = db.prepare("SELECT version FROM schema_migrations ORDER BY version").all() as unknown as Array<{ version: number }>;
+  return { applied: rows.map((r) => r.version), pending: PERSISTENCE_MIGRATIONS.filter((m) => !rows.some((r) => r.version === m.version)).length };
+}
+
+/**
+ * Runs a group of writes atomically. SQLite node driver holds one connection,
+ * and no await may occur inside fn (never hold a transaction open across an
+ * external HTTP call).
+ */
+let transactionDepth = 0;
+
+export function withTransaction<T>(fn: () => T): T {
+  const db = getDb();
+  const savepoint = transactionDepth > 0 ? `sp_${transactionDepth}` : null;
+  db.exec(savepoint ? `SAVEPOINT ${savepoint}` : "BEGIN IMMEDIATE");
+  transactionDepth++;
+  try {
+    const result = fn();
+    transactionDepth--;
+    db.exec(savepoint ? `RELEASE ${savepoint}` : "COMMIT");
+    return result;
+  } catch (err) {
+    transactionDepth = Math.max(0, transactionDepth - 1);
+    db.exec(savepoint ? `ROLLBACK TO ${savepoint}` : "ROLLBACK");
+    if (savepoint) db.exec(`RELEASE ${savepoint}`);
+    throw err;
+  }
 }
 
 /**
@@ -156,17 +1313,19 @@ function migrate(db: DatabaseSync) {
 function encryptLegacyIdentifiers(db: DatabaseSync) {
   const rows = db
     .prepare(
-      `SELECT client_id, pan, gst_number FROM clients
+      `SELECT client_id, pan, gst_number, tan FROM clients
        WHERE (pan IS NOT NULL AND pan NOT LIKE 'enc:v1:%')
-          OR (gst_number IS NOT NULL AND gst_number NOT LIKE 'enc:v1:%')`,
+          OR (gst_number IS NOT NULL AND gst_number NOT LIKE 'enc:v1:%')
+          OR (tan IS NOT NULL AND tan NOT LIKE 'enc:v1:%')`,
     )
-    .all() as unknown as Array<{ client_id: string; pan: string | null; gst_number: string | null }>;
+    .all() as unknown as Array<{ client_id: string; pan: string | null; gst_number: string | null; tan: string | null }>;
   if (rows.length === 0) return;
-  const update = db.prepare("UPDATE clients SET pan = ?, gst_number = ? WHERE client_id = ?");
+  const update = db.prepare("UPDATE clients SET pan = ?, gst_number = ?, tan = ? WHERE client_id = ?");
   for (const row of rows) {
     update.run(
       row.pan && !isEncrypted(row.pan) ? encryptField(row.pan) : row.pan,
       row.gst_number && !isEncrypted(row.gst_number) ? encryptField(row.gst_number) : row.gst_number,
+      row.tan && !isEncrypted(row.tan) ? encryptField(row.tan) : row.tan,
       row.client_id,
     );
   }
@@ -212,19 +1371,6 @@ const SEED_CLIENTS: SeedClient[] = [
   ["Apex Media Pvt Ltd", "Farah Khan", "9820055667", "farah@apexmedia.in", "Private Limited", "27AAECA8910K1Z7", "AAECA8910K", "GST Filing, Tax Audit, ROC", "Mumbai", "Maharashtra"],
   ["Sunrise Hospitality", "Deepak Gupta", "9829066778", "deepak@sunrisehospitality.in", "Partnership", "08AAFCS3456L1Z2", "AAFCS3456L", "GST Filing, ITR", "Jaipur", "Rajasthan"],
   ["Trident Pharma Pvt Ltd", "Sneha Kulkarni", "9820077889", "sneha@tridentpharma.in", "Private Limited", "27AAGCT7890M1Z8", "AAGCT7890M", "GST, TDS, Tax Audit, ITR", "Mumbai", "Maharashtra"],
-];
-
-const SEED_LEADS: Array<[string, string, string, string, string, string, number, Lead["category"], Lead["status"], string]> = [
-  ["Aditya Rao", "Rao Foods Pvt Ltd", "9820112233", "aditya@raofoods.in", "Website", "GST Filing, ITR", 86, "Hot", "Qualified", "Needs monthly GST + quarterly ITR support. Turnover ₹4.2 Cr."],
-  ["Neha Joshi", "Joshi Design Studio", "9821223344", "neha@joshidesign.in", "Referral", "GST Filing", 72, "Warm", "Contacted", "Referred by Apex Media. Wants proposal this week."],
-  ["Vikram Singh", "Singh Logistics", "9822334455", "vikram@singhlogistics.in", "WhatsApp", "Tax Audit, TDS", 91, "Hot", "Proposal Sent", "Proposal sent for FY audit. Follow up Friday."],
-  ["Ritu Agarwal", "Agarwal Jewellers", "9823445566", "ritu@agarwaljewellers.in", "Website", "GST Filing, Tax Audit", 64, "Warm", "New", "Enquiry from website form. Awaiting first call."],
-  ["Sameer Kulkarni", "Kulkarni Consulting", "9824556677", "sameer@kulkarniconsulting.in", "LinkedIn", "ITR, ROC", 58, "Warm", "Contacted", "Solo consultant, ROC + ITR scope."],
-  ["Pooja Menon", "Menon Interiors", "9825667788", "pooja@menoninteriors.in", "Referral", "GST Filing", 45, "Cold", "Lost", "Went with a lower-cost local firm."],
-  ["Arjun Bhatia", "Bhatia Exports LLP", "9826778899", "arjun@bhatiaexports.in", "Website", "GST Filing, ITR, TDS", 78, "Hot", "Qualified", "Export refunds pending, urgent GST help."],
-  ["Kavita Reddy", "Reddy Pharma", "9827889900", "kavita@reddypharma.in", "Event", "Tax Audit, ITR", 69, "Warm", "New", "Met at ICAI seminar. Needs audit for FY24-25."],
-  ["Harish Patel", "Patel Textiles", "9828990011", "harish@pateltextiles.in", "WhatsApp", "GST Filing", 55, "Warm", "Contacted", "Wants to migrate from current CA."],
-  ["Divya Shah", "Shah Digital", "9829001122", "divya@shahdigital.in", "Referral", "ITR, ROC", 82, "Hot", "Won", "Signed annual retainer of ₹1.8L."],
 ];
 
 type SeedCompliance = [number, string, string, number, Compliance["status"], string];
@@ -333,7 +1479,6 @@ const SEED_AUDIT: SeedAudit[] = [
   ["Managing Partner", "STATUS_CHANGE", "compliance", "GST Filing (GSTR-3B) marked filed for Trident Pharma", -35],
   ["Meera Pillai", "DOCUMENT_RECEIVED", "document", "Bank Statement — Sep 2026 received from Sharma Textiles", -120],
   ["Rohit Bansal", "INVOICE_PAID", "invoice", "Invoice INV-2026-004 settled by Shah Capital Advisors", -240],
-  ["Ananya Iyer", "LEAD_UPDATE", "lead", "Divya Shah moved to Won — annual retainer signed", -300],
   ["Managing Partner", "NOTICE_RESPONSE", "notice", "ASMT-10 response filed for Apex Media", -390],
   ["Meera Pillai", "CLIENT_CREATED", "client", "Trident Pharma Pvt Ltd onboarded", -520],
   ["Rohit Bansal", "UDIN_GENERATED", "udin", "UDIN generated for NovaBuild statutory audit", -660],
@@ -343,10 +1488,11 @@ const SEED_AUDIT: SeedAudit[] = [
 function seedIfEmpty(db: DatabaseSync) {
   const count = db.prepare("SELECT COUNT(*) AS n FROM clients").get() as { n: number };
   if (count.n > 0) return;
+  // Synthetic demo practice data is never auto-seeded in durable production —
+  // only demo-marked installs (CA_ALLOW_EPHEMERAL=1) or dev machines.
+  if (!getConfig().demoSeed) return;
 
   const insertClient = db.prepare(`INSERT INTO clients (client_id,name,contact_person,phone,email,entity_type,gst_number,pan,services_opted,city,state,created_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
-  const insertLead = db.prepare(`INSERT INTO leads (lead_id,name,company_name,phone,email,source,service_interest,lead_score,category,status,notes,created_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insertCompliance = db.prepare(`INSERT INTO compliance (compliance_id,client_id,client_name,compliance_type,period,due_date,status,filed_date,ack_number,assigned_to,notes)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
@@ -371,12 +1517,6 @@ function seedIfEmpty(db: DatabaseSync) {
     SEED_CLIENTS.forEach((c, i) => {
       insertClient.run(
         `CLIENT-${String(i + 1).padStart(3, "0")}`, c[0], c[1], c[2], c[3], c[4], encryptField(c[5]), encryptField(c[6]), c[7], c[8], c[9], stamp((i + 1) * 60 * 24 * 20),
-      );
-    });
-
-    SEED_LEADS.forEach((l, i) => {
-      insertLead.run(
-        `LEAD-${String(i + 1).padStart(3, "0")}`, l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9], stamp((i + 1) * 60 * 18),
       );
     });
 
@@ -470,16 +1610,17 @@ function seedIfEmpty(db: DatabaseSync) {
  */
 function seedExtrasIfEmpty(db: DatabaseSync) {
   const proposals = db.prepare("SELECT COUNT(*) AS n FROM proposals").get() as { n: number };
+  if (proposals.n === 0 && !getConfig().demoSeed) return;
   if (proposals.n === 0) {
     const settings = Object.fromEntries(
       (db.prepare("SELECT key, value FROM settings").all() as unknown as Array<{ key: string; value: string }>).map((r) => [r.key, r.value]),
     );
-    const leads = db.prepare("SELECT lead_id, name, company_name, service_interest FROM leads ORDER BY lead_score DESC LIMIT 2").all() as unknown as Array<{
-      lead_id: string;
-      name: string;
-      company_name: string;
-      service_interest: string;
-    }>;
+    let leads: Array<{ lead_id: string; name: string; company_name: string; service_interest: string }> = [];
+    try {
+      leads = db.prepare("SELECT lead_id, name, company_name, service_interest FROM leads ORDER BY lead_score DESC LIMIT 2").all() as unknown as typeof leads;
+    } catch {
+      // The leads module was removed from the schema — seed no demo proposals.
+    }
     const insert = db.prepare(`INSERT INTO proposals (proposal_id,lead_id,prospect_name,company_name,entity_type,services,fee,body,status,created_at)
       VALUES (?,?,?,?,?,?,?,?,?,?)`);
     const seeds = [
@@ -565,17 +1706,17 @@ function seedExtrasIfEmpty(db: DatabaseSync) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // node:sqlite returns null-prototype rows. Normalise to plain objects so the
 // records can cross the Server → Client Component boundary in Next.js.
-function all<T>(sql: string, ...params: Array<string | number | null>): T[] {
+export function all<T>(sql: string, ...params: Array<string | number | null>): T[] {
   const rows = getDb().prepare(sql).all(...params) as unknown as Array<Record<string, unknown>>;
   return rows.map((row) => ({ ...row })) as T[];
 }
 
-function one<T>(sql: string, ...params: Array<string | number | null>): T | null {
+export function one<T>(sql: string, ...params: Array<string | number | null>): T | null {
   const row = getDb().prepare(sql).get(...params) as unknown as Record<string, unknown> | undefined;
   return row ? ({ ...row } as T) : null;
 }
 
-function nextId(prefix: string, table: string, column: string): string {
+export function nextId(prefix: string, table: string, column: string): string {
   // MAX(suffix) instead of COUNT(*) so deleting a record can never resurrect an id.
   const row = one<{ max: number | null }>(
     `SELECT MAX(CAST(SUBSTR(${column}, ${prefix.length + 2}) AS INTEGER)) AS max FROM ${table}`,
@@ -822,6 +1963,195 @@ export function decideAiAction(
   return getAiAction(actionId);
 }
 
+// ── Automation rules ──────────────────────────────────────────────────────────
+//
+// A rule is a *standing approval*: a partner or manager configures it once and
+// the sweep runs it unattended. Every run is recorded in automation_runs and
+// the audit log, so the firm can always answer "why did this happen?".
+
+type AutomationRuleRow = {
+  rule_id: string; name: string; action: string; params: string;
+  mode: string; cadence: string; enabled: number; last_run_at: string | null;
+  run_count: number; created_by: string; created_at: string;
+};
+
+function fromDbRule(row: AutomationRuleRow): AutomationRule {
+  let params: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(row.params || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) params = parsed as Record<string, unknown>;
+  } catch {
+    params = {};
+  }
+  return {
+    rule_id: row.rule_id,
+    name: row.name,
+    action: row.action as AutomationKind,
+    params,
+    mode: (row.mode === "approval" ? "approval" : "auto") as AutomationMode,
+    cadence: (["daily", "weekly", "monthly"].includes(row.cadence) ? row.cadence : "daily") as AutomationCadence,
+    enabled: row.enabled === 1,
+    last_run_at: row.last_run_at,
+    run_count: row.run_count,
+    created_by: row.created_by,
+    created_at: row.created_at,
+  };
+}
+
+export function listAutomationRules(): AutomationRule[] {
+  return all<AutomationRuleRow>("SELECT * FROM automation_rules ORDER BY enabled DESC, created_at ASC").map(fromDbRule);
+}
+
+export function getAutomationRule(ruleId: string): AutomationRule | null {
+  const row = one<AutomationRuleRow>("SELECT * FROM automation_rules WHERE rule_id = ?", ruleId);
+  return row ? fromDbRule(row) : null;
+}
+
+export function createAutomationRule(input: {
+  name: string;
+  action: AutomationKind;
+  params: Record<string, unknown>;
+  mode: AutomationMode;
+  cadence: AutomationCadence;
+  created_by: string;
+}): AutomationRule {
+  const row: AutomationRuleRow = {
+    rule_id: nextId("AUTO", "automation_rules", "rule_id"),
+    name: input.name.slice(0, 120),
+    action: input.action,
+    params: JSON.stringify(input.params ?? {}),
+    mode: input.mode,
+    cadence: input.cadence,
+    enabled: 1,
+    last_run_at: null,
+    run_count: 0,
+    created_by: input.created_by,
+    created_at: new Date().toISOString(),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO automation_rules (rule_id,name,action,params,mode,cadence,enabled,last_run_at,run_count,created_by,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .run(row.rule_id, row.name, row.action, row.params, row.mode, row.cadence, row.enabled, row.last_run_at, row.run_count, row.created_by, row.created_at);
+  logAudit({ actor: input.created_by, action: "AUTOMATION_RULE_CREATED", entity_type: "automation_rule", entity_id: row.rule_id, detail: `${row.name} (${row.action}, ${row.mode}, ${row.cadence})` });
+  return fromDbRule(row);
+}
+
+export function updateAutomationRule(
+  ruleId: string,
+  patch: Partial<Pick<AutomationRule, "name" | "params" | "mode" | "cadence" | "enabled">>,
+): AutomationRule | null {
+  const existing = getAutomationRule(ruleId);
+  if (!existing) return null;
+  const next = { ...existing, ...patch };
+  getDb()
+    .prepare("UPDATE automation_rules SET name = ?, params = ?, mode = ?, cadence = ?, enabled = ? WHERE rule_id = ?")
+    .run(next.name, JSON.stringify(next.params ?? {}), next.mode, next.cadence, next.enabled ? 1 : 0, ruleId);
+  return getAutomationRule(ruleId);
+}
+
+export function deleteAutomationRule(ruleId: string): boolean {
+  const result = getDb().prepare("DELETE FROM automation_rules WHERE rule_id = ?").run(ruleId);
+  if (Number(result.changes) > 0) {
+    logAudit({ action: "AUTOMATION_RULE_DELETED", entity_type: "automation_rule", entity_id: ruleId, detail: "Rule removed" });
+    return true;
+  }
+  return false;
+}
+
+/** Records that a rule completed a run (attempt-count, not success-count). */
+export function markAutomationRuleRun(ruleId: string): void {
+  getDb()
+    .prepare("UPDATE automation_rules SET last_run_at = ?, run_count = run_count + 1 WHERE rule_id = ?")
+    .run(new Date().toISOString(), ruleId);
+}
+
+export function logAutomationRun(entry: {
+  rule_id: string;
+  rule_name: string;
+  status: AutomationRun["status"];
+  summary: string;
+  detail?: Record<string, unknown>;
+  actor: string;
+  started_at: string;
+}): AutomationRun {
+  const run: AutomationRun = {
+    run_id: nextId("ARUN", "automation_runs", "run_id"),
+    rule_id: entry.rule_id,
+    rule_name: entry.rule_name,
+    status: entry.status,
+    summary: entry.summary.slice(0, 500),
+    detail: entry.detail ?? {},
+    actor: entry.actor,
+    started_at: entry.started_at,
+    finished_at: new Date().toISOString(),
+  };
+  getDb()
+    .prepare("INSERT INTO automation_runs (run_id,rule_id,rule_name,status,summary,detail,actor,started_at,finished_at) VALUES (?,?,?,?,?,?,?,?,?)")
+    .run(run.run_id, run.rule_id, run.rule_name, run.status, run.summary, JSON.stringify(run.detail), run.actor, run.started_at, run.finished_at);
+  logAudit({
+    actor: entry.actor,
+    action: entry.status === "failed" ? "AUTOMATION_RUN_FAILED" : "AUTOMATION_RUN",
+    entity_type: "automation_run",
+    entity_id: run.run_id,
+    detail: `${run.rule_name}: ${run.summary}`,
+  });
+  return run;
+}
+
+export function listAutomationRuns(limit = 25): AutomationRun[] {
+  return all<Omit<AutomationRun, "detail"> & { detail: string }>(
+    "SELECT * FROM automation_runs ORDER BY started_at DESC LIMIT ?",
+    limit,
+  ).map((row) => {
+    let detail: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(row.detail || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) detail = parsed as Record<string, unknown>;
+    } catch {
+      detail = {};
+    }
+    return { ...row, detail };
+  });
+}
+
+/** Runs from the last N days, used for the "actions taken" counter. */
+export function automationActivity(sinceDays = 7): { runs: number; actions: number } {
+  const row = one<{ runs: number; actions: number }>(
+    `SELECT COUNT(*) AS runs,
+            COALESCE(SUM(CAST(json_extract(detail, '$.actions') AS INTEGER)), 0) AS actions
+       FROM automation_runs
+      WHERE started_at >= datetime('now', ?)`,
+    `-${sinceDays} days`,
+  );
+  return { runs: row?.runs ?? 0, actions: row?.actions ?? 0 };
+}
+
+// ── Automation outbox ─────────────────────────────────────────────────────────
+// Automation drafts communication as `Queued` messages. Nothing is claimed to
+// have been sent: the firm opens the deep link, sends it, and marks it sent.
+
+export function listQueuedMessages(limit = 40): Message[] {
+  return all<Message>("SELECT * FROM messages WHERE status = 'Queued' ORDER BY created_at ASC LIMIT ?", limit);
+}
+
+export function countQueuedMessages(): number {
+  const row = one<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE status = 'Queued'");
+  return row?.n ?? 0;
+}
+
+export function markMessageStatus(messageId: string, status: string): Message | null {
+  getDb()
+    .prepare("UPDATE messages SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN COALESCE(sent_at, ?) ELSE sent_at END WHERE message_id = ?")
+    .run(status, status, new Date().toISOString(), messageId);
+  const row = one<Message>("SELECT * FROM messages WHERE message_id = ?", messageId);
+  if (row && status === "Sent") {
+    logAudit({ action: "MESSAGE_SENT", entity_type: row.related_type || "message", entity_id: row.related_id, detail: `${row.channel} to ${row.recipient_name}` });
+  }
+  return row;
+}
+
 // ── Clients ───────────────────────────────────────────────────────────────────
 export function listClients(): Client[] {
   return all<Client>("SELECT * FROM clients ORDER BY name").map(fromDbClient);
@@ -832,18 +2162,94 @@ export function getClient(clientId: string): Client | null {
   return row ? fromDbClient(row) : null;
 }
 
-// PAN and GSTIN come back out of storage decrypted; everything above this
+// PAN, GSTIN and TAN come back out of storage decrypted; everything above this
 // layer only ever sees plaintext values.
 function fromDbClient(row: Client): Client {
-  return { ...row, gst_number: decryptField(row.gst_number), pan: decryptField(row.pan) };
+  return {
+    ...row,
+    gst_number: decryptField(row.gst_number),
+    pan: decryptField(row.pan),
+    tan: decryptField(row.tan ?? ""),
+    whatsapp_opt_in: row.whatsapp_opt_in === undefined ? true : Boolean(row.whatsapp_opt_in),
+    onboarding_status: row.onboarding_status ?? "Active",
+    client_status: row.client_status ?? "Active",
+    fy_end_month: row.fy_end_month ?? 3,
+    preferred_language: row.preferred_language ?? "English",
+    preferred_channel: (row.preferred_channel as Client["preferred_channel"]) ?? "WhatsApp",
+    onboarding_stage: row.onboarding_stage ?? "review",
+    engagement_letter_status: row.engagement_letter_status ?? "Not recorded",
+    contact_verified_at: row.contact_verified_at ?? null,
+    onboarding_completed_at: row.onboarding_completed_at ?? null,
+  };
 }
 
 export function createClient(input: Omit<Client, "client_id" | "created_at">): Client {
-  const client: Client = { ...input, client_id: nextId("CLIENT", "clients", "client_id"), created_at: new Date().toISOString() };
+  const client: Client = {
+    ...input,
+    client_id: nextId("CLIENT", "clients", "client_id"),
+    created_at: new Date().toISOString(),
+    gst_state_code: input.gst_state_code || (input.gst_number ? input.gst_number.slice(0, 2) : ""),
+    whatsapp_opt_in: input.whatsapp_opt_in ?? true,
+    onboarding_status: input.onboarding_status ?? "Active",
+    client_status: input.client_status ?? "Active",
+    fy_end_month: input.fy_end_month ?? 3,
+  };
   getDb()
-    .prepare(`INSERT INTO clients (client_id,name,contact_person,phone,email,entity_type,gst_number,pan,services_opted,city,state,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(client.client_id, client.name, client.contact_person, client.phone, client.email, client.entity_type, encryptField(client.gst_number), encryptField(client.pan), client.services_opted, client.city, client.state, client.created_at);
+    .prepare(`INSERT INTO clients (client_id,name,contact_person,phone,email,entity_type,gst_number,pan,services_opted,city,state,created_at,
+      legal_name,trade_name,tan,cin,gst_registration_type,gst_state_code,date_of_incorporation,address,pincode,
+      whatsapp_opt_in,onboarding_status,client_status,relationship_manager,notes,fy_end_month,
+      date_of_birth,primary_contact_designation,whatsapp_number,billing_contact,authorised_representative,
+      preferred_language,preferred_channel,contact_verified_at,contact_verification_note,
+      whatsapp_consent_at,whatsapp_consent_source,engagement_letter_status,engagement_letter_date,
+      onboarding_stage,onboarding_completed_at,created_by,updated_by,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      client.client_id,
+      client.name,
+      client.contact_person,
+      client.phone,
+      client.email,
+      client.entity_type,
+      encryptField(client.gst_number),
+      encryptField(client.pan),
+      client.services_opted,
+      client.city,
+      client.state,
+      client.created_at,
+      client.legal_name ?? client.name,
+      client.trade_name ?? "",
+      encryptField(client.tan ?? ""),
+      client.cin ?? "",
+      client.gst_registration_type ?? (client.gst_number ? "Regular" : "Unregistered"),
+      client.gst_state_code ?? "",
+      client.date_of_incorporation ?? "",
+      client.address ?? "",
+      client.pincode ?? "",
+      client.whatsapp_opt_in ? 1 : 0,
+      client.onboarding_status ?? "Active",
+      client.client_status ?? "Active",
+      client.relationship_manager ?? "",
+      client.notes ?? "",
+      client.fy_end_month ?? 3,
+      client.date_of_birth ?? "",
+      client.primary_contact_designation ?? "",
+      client.whatsapp_number ?? "",
+      client.billing_contact ?? "",
+      client.authorised_representative ?? "",
+      client.preferred_language ?? "English",
+      client.preferred_channel ?? "WhatsApp",
+      client.contact_verified_at ?? null,
+      client.contact_verification_note ?? "",
+      client.whatsapp_consent_at ?? null,
+      client.whatsapp_consent_source ?? "",
+      client.engagement_letter_status ?? "Not recorded",
+      client.engagement_letter_date ?? "",
+      client.onboarding_stage ?? "review",
+      client.onboarding_completed_at ?? null,
+      client.created_by ?? "",
+      client.updated_by ?? "",
+      client.updated_at ?? client.created_at,
+    );
   logAudit({ action: "CLIENT_CREATED", entity_type: "client", entity_id: client.client_id, detail: `${client.name} onboarded` });
   return client;
 }
@@ -856,22 +2262,70 @@ export function updateClient(
   if (!current) return null;
   const next = { ...current, ...patch };
   const db = getDb();
-  db.exec("BEGIN");
-  try {
-    db.prepare(`UPDATE clients SET name=?, contact_person=?, phone=?, email=?, entity_type=?, gst_number=?, pan=?, services_opted=?, city=?, state=? WHERE client_id=?`)
-      .run(next.name, next.contact_person, next.phone, next.email, next.entity_type, encryptField(next.gst_number), encryptField(next.pan), next.services_opted, next.city, next.state, clientId);
+  // withTransaction uses a savepoint when a caller (onboarding) already opened
+  // a transaction, so profile writes never issue a nested BEGIN.
+  withTransaction(() => {
+    db.prepare(`UPDATE clients SET name=?, contact_person=?, phone=?, email=?, entity_type=?, gst_number=?, pan=?, services_opted=?, city=?, state=?,
+      legal_name=?, trade_name=?, tan=?, cin=?, gst_registration_type=?, gst_state_code=?, date_of_incorporation=?, address=?, pincode=?,
+      whatsapp_opt_in=?, onboarding_status=?, client_status=?, relationship_manager=?, notes=?, fy_end_month=?,
+      date_of_birth=?, primary_contact_designation=?, whatsapp_number=?, billing_contact=?, authorised_representative=?,
+      preferred_language=?, preferred_channel=?, contact_verified_at=?, contact_verification_note=?,
+      whatsapp_consent_at=?, whatsapp_consent_source=?, engagement_letter_status=?, engagement_letter_date=?,
+      onboarding_stage=?, onboarding_completed_at=?, updated_by=?, updated_at=? WHERE client_id=?`)
+      .run(
+        next.name,
+        next.contact_person,
+        next.phone,
+        next.email,
+        next.entity_type,
+        encryptField(next.gst_number),
+        encryptField(next.pan),
+        next.services_opted,
+        next.city,
+        next.state,
+        next.legal_name ?? next.name,
+        next.trade_name ?? "",
+        encryptField(next.tan ?? ""),
+        next.cin ?? "",
+        next.gst_registration_type ?? "",
+        next.gst_state_code ?? "",
+        next.date_of_incorporation ?? "",
+        next.address ?? "",
+        next.pincode ?? "",
+        next.whatsapp_opt_in ? 1 : 0,
+        next.onboarding_status ?? "Active",
+        next.client_status ?? "Active",
+        next.relationship_manager ?? "",
+        next.notes ?? "",
+        next.fy_end_month ?? 3,
+        next.date_of_birth ?? "",
+        next.primary_contact_designation ?? "",
+        next.whatsapp_number ?? "",
+        next.billing_contact ?? "",
+        next.authorised_representative ?? "",
+        next.preferred_language ?? "English",
+        next.preferred_channel ?? "WhatsApp",
+        next.contact_verified_at ?? null,
+        next.contact_verification_note ?? "",
+        next.whatsapp_consent_at ?? null,
+        next.whatsapp_consent_source ?? "",
+        next.engagement_letter_status ?? "Not recorded",
+        next.engagement_letter_date ?? "",
+        next.onboarding_stage ?? "review",
+        next.onboarding_completed_at ?? null,
+        next.updated_by ?? next.created_by ?? "",
+        next.updated_at ?? new Date().toISOString(),
+        clientId,
+      );
     if (next.name !== current.name) {
       // Keep the denormalised capture name in sync across the practice.
       db.prepare("UPDATE compliance SET client_name=? WHERE client_id=?").run(next.name, clientId);
       db.prepare("UPDATE documents SET client_name=? WHERE client_id=?").run(next.name, clientId);
       db.prepare("UPDATE invoices SET client_name=? WHERE client_id=?").run(next.name, clientId);
       db.prepare("UPDATE payments SET client_name=? WHERE client_name=?").run(next.name, current.name);
+      db.prepare("UPDATE document_requests SET client_name=? WHERE client_id=?").run(next.name, clientId);
     }
-    db.exec("COMMIT");
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
+  });
   logAudit({ action: "CLIENT_UPDATED", entity_type: "client", entity_id: clientId, detail: `${next.name} profile updated` });
   return next;
 }
@@ -890,7 +2344,15 @@ export function deleteClient(clientId: string): { ok: boolean; blockers: string[
   if (documents) blockers.push(`${documents} document${documents === 1 ? "" : "s"}`);
   if (invoices) blockers.push(`${invoices} invoice${invoices === 1 ? "" : "s"}`);
   if (blockers.length) return { ok: false, blockers };
-  db.prepare("DELETE FROM clients WHERE client_id = ?").run(clientId);
+  withTransaction(() => {
+    db.prepare("DELETE FROM client_services WHERE client_id = ?").run(clientId);
+    db.prepare("DELETE FROM document_requests WHERE client_id = ?").run(clientId);
+    db.prepare("DELETE FROM client_registrations WHERE client_id = ?").run(clientId);
+    db.prepare("DELETE FROM client_service_assignments WHERE client_id = ?").run(clientId);
+    db.prepare("DELETE FROM onboarding_tasks WHERE client_id = ?").run(clientId);
+    db.prepare("DELETE FROM onboarding_activations WHERE client_id = ?").run(clientId);
+    db.prepare("DELETE FROM clients WHERE client_id = ?").run(clientId);
+  });
   logAudit({ action: "CLIENT_DELETED", entity_type: "client", entity_id: clientId, detail: `${client.name} removed` });
   return { ok: true, blockers: [] };
 }
@@ -919,12 +2381,31 @@ export function getClientDetail(clientId: string): ClientDetail | null {
     proposals,
     messages,
     totals: { billed, collected, outstanding: billed - collected, overdue },
+    services: all<ClientService>("SELECT * FROM client_services WHERE client_id = ? ORDER BY service_name", clientId).map((row) => ({
+      ...row,
+      auto_invoice: Boolean(row.auto_invoice),
+      fee: Number(row.fee) || 0,
+      reminder_cap: Math.min(3, Math.max(1, Number(row.reminder_cap) || 3)),
+    })),
+    requests: all<DocumentRequest>(
+      "SELECT * FROM document_requests WHERE client_id = ? ORDER BY CASE status WHEN 'Open' THEN 0 ELSE 1 END, due_date",
+      clientId,
+    ),
+    timeline: all<TaskEvent>(
+      `SELECT e.* FROM task_events e JOIN compliance c ON c.compliance_id = e.compliance_id WHERE c.client_id = ? ORDER BY e.created_at DESC LIMIT 40`,
+      clientId,
+    ),
   };
 }
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
 export function listLeads(): Lead[] {
-  return all<Lead>("SELECT * FROM leads ORDER BY lead_score DESC");
+  try {
+    return all<Lead>("SELECT * FROM leads ORDER BY lead_score DESC");
+  } catch {
+    // Databases created after the leads module was removed have no leads table.
+    return [];
+  }
 }
 
 export function createLead(input: Omit<Lead, "lead_id" | "created_at">): Lead {
@@ -955,16 +2436,104 @@ function effectiveComplianceStatus(row: Compliance): Compliance["status"] {
   return row.status;
 }
 
-export function listCompliance(): Compliance[] {
-  return all<Compliance>("SELECT * FROM compliance ORDER BY due_date").map((r) => ({ ...r, status: effectiveComplianceStatus(r) }));
+function normaliseCompliance(row: Compliance): Compliance {
+  return {
+    ...row,
+    status: effectiveComplianceStatus(row),
+    due_date_verified: Boolean(row.due_date_verified),
+    filing_confirmed_by_integration: Boolean(row.filing_confirmed_by_integration),
+    billed: Boolean(row.billed),
+  };
 }
 
-export function createCompliance(input: Omit<Compliance, "compliance_id">): Compliance {
-  const item: Compliance = { ...input, compliance_id: nextId("COMP", "compliance", "compliance_id") };
+export function listCompliance(): Compliance[] {
+  return all<Compliance>("SELECT * FROM compliance ORDER BY due_date").map(normaliseCompliance);
+}
+
+export function getCompliance(complianceId: string): Compliance | null {
+  const row = one<Compliance>("SELECT * FROM compliance WHERE compliance_id = ?", complianceId);
+  return row ? normaliseCompliance(row) : null;
+}export function createCompliance(input: Omit<Compliance, "compliance_id">): Compliance {
+  const generatedAt = input.generated_at ?? new Date().toISOString();
+  const item: Compliance = {
+    ...input,
+    compliance_id: nextId("COMP", "compliance", "compliance_id"),
+    stage: input.stage ?? (input.status === "Filed" ? "done" : input.status === "In Progress" ? "preparation" : "documents"),
+    stage_updated_at: input.stage_updated_at ?? generatedAt,
+    preparer: input.preparer ?? input.assigned_to ?? "",
+    reviewer: input.reviewer ?? "",
+    fy: input.fy ?? fyForDate(input.due_date),
+    service_code: input.service_code ?? serviceCodeFromLabel(input.compliance_type) ?? "other",
+    service_id: input.service_id ?? "",
+    billed: input.billed ?? false,
+    period_type: input.period_type ?? "custom",
+    period_start: input.period_start ?? null,
+    period_end: input.period_end ?? null,
+    assessment_year: input.assessment_year ?? null,
+    internal_target_date: input.internal_target_date ?? input.due_date,
+    statutory_due_date: input.statutory_due_date ?? null,
+    due_rule_id: input.due_rule_id ?? null,
+    due_rule_version: input.due_rule_version ?? null,
+    due_date_source: input.due_date_source ?? "Manual due date (unverified)",
+    due_date_verified: input.due_date_verified ?? false,
+    statutory_rule_status: input.statutory_rule_status ?? "unverified",
+    generation_source: input.generation_source ?? "manual",
+    generated_at: generatedAt,
+    filing_recorded_at: input.filing_recorded_at ?? null,
+    filing_reference: input.filing_reference ?? null,
+    filing_recorded_by: input.filing_recorded_by ?? "",
+    filing_confirmed_by_integration: input.filing_confirmed_by_integration ?? false,
+    filing_notes: input.filing_notes ?? "",
+  };
   getDb()
-    .prepare(`INSERT INTO compliance (compliance_id,client_id,client_name,compliance_type,period,due_date,status,filed_date,ack_number,assigned_to,notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(item.compliance_id, item.client_id, item.client_name, item.compliance_type, item.period, item.due_date, item.status, item.filed_date, item.ack_number, item.assigned_to, item.notes);
+    .prepare(`INSERT INTO compliance (compliance_id,client_id,client_name,compliance_type,period,due_date,status,filed_date,ack_number,assigned_to,notes,
+      service_id,service_code,fy,stage,stage_updated_at,preparer,reviewer,blocked_reason,completed_at,billed,registration_id,
+      period_type,period_start,period_end,assessment_year,internal_target_date,statutory_due_date,due_rule_id,due_rule_version,
+      due_date_source,due_date_verified,statutory_rule_status,generation_source,generated_at,
+      filing_recorded_at,filing_reference,filing_recorded_by,filing_confirmed_by_integration,filing_notes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      item.compliance_id,
+      item.client_id,
+      item.client_name,
+      item.compliance_type,
+      item.period,
+      item.due_date,
+      item.status,
+      item.filed_date,
+      item.ack_number,
+      item.assigned_to,
+      item.notes,
+      item.service_id ?? "",
+      item.service_code ?? "other",
+      item.fy ?? "",
+      item.stage ?? "documents",
+      item.stage_updated_at ?? generatedAt,
+      item.preparer ?? "",
+      item.reviewer ?? "",
+      item.blocked_reason ?? "",
+      item.completed_at ?? null,
+      item.billed ? 1 : 0,
+      item.registration_id ?? "",
+      item.period_type ?? "custom",
+      item.period_start ?? null,
+      item.period_end ?? null,
+      item.assessment_year ?? null,
+      item.internal_target_date ?? item.due_date,
+      item.statutory_due_date ?? null,
+      item.due_rule_id ?? null,
+      item.due_rule_version ?? null,
+      item.due_date_source ?? "Manual due date (unverified)",
+      item.due_date_verified ? 1 : 0,
+      item.statutory_rule_status ?? "unverified",
+      item.generation_source ?? "manual",
+      generatedAt,
+      item.filing_recorded_at ?? null,
+      item.filing_reference ?? null,
+      item.filing_recorded_by ?? "",
+      item.filing_confirmed_by_integration ? 1 : 0,
+      item.filing_notes ?? "",
+    );
   logAudit({ action: "COMPLIANCE_CREATED", entity_type: "compliance", entity_id: item.compliance_id, detail: `${item.compliance_type} for ${item.client_name}` });
   return item;
 }
@@ -973,13 +2542,54 @@ export function updateComplianceStatus(complianceId: string, status: Compliance[
   const current = one<Compliance>("SELECT * FROM compliance WHERE compliance_id = ?", complianceId);
   if (!current) return null;
   const filed = status === "Filed";
-  const ackNumber = filed ? current.ack_number || `ACK${Date.now().toString().slice(-6)}` : current.ack_number;
-  const filedDate = filed ? iso(0) : current.filed_date;
+  // Never invent an acknowledgement. A filing needs recorded evidence first.
+  if (filed && !current.ack_number) {
+    throw new Error("Record the portal acknowledgement / ARN before marking this engagement as filed");
+  }
+  const ackNumber = current.ack_number;
+  const filedDate = filed ? current.filed_date || iso(0) : current.filed_date;
+  const stage = filed ? "done" : current.stage ?? "documents";
   getDb()
-    .prepare("UPDATE compliance SET status=?, filed_date=?, ack_number=? WHERE compliance_id=?")
-    .run(status, filedDate, ackNumber, complianceId);
+    .prepare("UPDATE compliance SET status=?, filed_date=?, stage=?, completed_at=? WHERE compliance_id=?")
+    .run(status, filedDate, stage, filed ? new Date().toISOString() : current.completed_at ?? null, complianceId);
   logAudit({ action: "STATUS_CHANGE", entity_type: "compliance", entity_id: complianceId, detail: `${current.compliance_type} for ${current.client_name} → ${status}` });
-  return { ...current, status, filed_date: filedDate, ack_number: ackNumber };
+  return { ...current, status, filed_date: filedDate, ack_number: ackNumber, stage };
+}
+
+export function recordComplianceHistory(input: {
+  compliance_id: string;
+  from_status: string | null;
+  to_status: string;
+  from_stage?: string | null;
+  to_stage?: string | null;
+  actor: string;
+  role: string;
+  reason?: string;
+  at?: string;
+}): void {
+  getDb()
+    .prepare(`INSERT INTO compliance_status_history
+      (history_id,compliance_id,from_status,to_status,from_stage,to_stage,actor,role,reason,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      nextId("HIST", "compliance_status_history", "history_id"),
+      input.compliance_id,
+      input.from_status,
+      input.to_status,
+      input.from_stage ?? null,
+      input.to_stage ?? null,
+      input.actor,
+      input.role,
+      (input.reason ?? "").slice(0, 500),
+      input.at ?? new Date().toISOString(),
+    );
+}
+
+export function listComplianceHistory(complianceId: string): StatusHistoryEntry[] {
+  return all<StatusHistoryEntry>(
+    "SELECT * FROM compliance_status_history WHERE compliance_id = ? ORDER BY created_at, history_id",
+    complianceId,
+  );
 }
 
 // ── Documents ─────────────────────────────────────────────────────────────────
@@ -1001,10 +2611,38 @@ export function createDocument(
     file_size: null,
     file_path: null,
     uploaded_at: null,
+    reminder_count: input.reminder_count ?? 0,
+    source: input.source ?? "manual",
   };
   getDb()
-    .prepare("INSERT INTO documents (doc_id,client_id,client_name,document_name,status,requested_date,received_date,notes) VALUES (?,?,?,?,?,?,?,?)")
-    .run(doc.doc_id, doc.client_id, doc.client_name, doc.document_name, doc.status, doc.requested_date, doc.received_date, doc.notes);
+    .prepare(`INSERT INTO documents (doc_id,client_id,client_name,document_name,status,requested_date,received_date,notes,
+      request_id,compliance_id,service_code,category,fy,period,reminder_count,last_reminded_at,next_reminder_on,verified_by,source,sort_order,
+      registration_id,template_version)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      doc.doc_id,
+      doc.client_id,
+      doc.client_name,
+      doc.document_name,
+      doc.status,
+      doc.requested_date,
+      doc.received_date,
+      doc.notes,
+      doc.request_id ?? "",
+      doc.compliance_id ?? "",
+      doc.service_code ?? "",
+      doc.category ?? "General",
+      doc.fy ?? "",
+      doc.period ?? "",
+      doc.reminder_count ?? 0,
+      doc.last_reminded_at ?? null,
+      doc.next_reminder_on ?? null,
+      doc.verified_by ?? "",
+      doc.source ?? "manual",
+      doc.sort_order ?? 0,
+      doc.registration_id ?? "",
+      doc.template_version ?? null,
+    );
   logAudit({ action: "DOCUMENT_REQUESTED", entity_type: "document", entity_id: doc.doc_id, detail: `${doc.document_name} requested from ${doc.client_name}` });
   return doc;
 }
@@ -1017,10 +2655,10 @@ export function attachDocumentFile(
   if (!current) return null;
   const uploadedAt = new Date().toISOString();
   getDb()
-    .prepare("UPDATE documents SET file_name=?, file_size=?, file_path=?, uploaded_at=?, status='Received', received_date=? WHERE doc_id=?")
-    .run(file.file_name, file.file_size, file.file_path, uploadedAt, iso(0), docId);
-  logAudit({ action: "DOCUMENT_UPLOADED", entity_type: "document", entity_id: docId, detail: `${file.file_name} uploaded for ${current.client_name}` });
-  return { ...current, ...file, uploaded_at: uploadedAt, status: "Received", received_date: iso(0) };
+    .prepare("UPDATE documents SET file_name=?, file_size=?, file_path=?, uploaded_at=?, status='Received', received_date=?, verified_by='', review_reason='', reviewed_at=? WHERE doc_id=?")
+    .run(file.file_name, file.file_size, file.file_path, uploadedAt, iso(0), uploadedAt, docId);
+  logAudit({ action: "DOCUMENT_UPLOADED", entity_type: "document", entity_id: docId, detail: `${file.file_name} uploaded for ${current.client_name}${current.status === "Verified" ? " — a prior review was reset" : ""}` });
+  return getDocument(docId);
 }
 
 export function clearDocumentFile(docId: string): DocumentItem | null {
@@ -1033,30 +2671,69 @@ export function clearDocumentFile(docId: string): DocumentItem | null {
   return { ...current, file_name: null, file_size: null, file_path: null, uploaded_at: null, status: "Pending", received_date: null };
 }
 
-export function updateDocumentStatus(docId: string, status: DocumentItem["status"]): DocumentItem | null {
+/** Replaces a document's current object with a new upload; the previous
+ *  object's bytes stay in storage under the version ledger until an explicit
+ *  retention decision (documents DELETE route) removes them. */
+export function recordFileVersion(
+  docId: string,
+  file: { object_key: string; file_name: string; size_bytes: number; checksum: string; uploaded_by?: string | null; change_reason?: string },
+): { version: number; version_id: string; superseded: number } {
+  return withTransaction(() => {
+    const row = one<{ next: number | null }>("SELECT MAX(version)+1 AS next FROM file_versions WHERE doc_id=?", docId);
+    const version = Math.max(1, Number(row?.next) || 1);
+    const versionId = nextId("FV", "file_versions", "version_id");
+    getDb()
+      .prepare(`INSERT INTO file_versions (version_id,doc_id,version,object_key,file_name,size_bytes,checksum,uploaded_by,uploaded_at,status,change_reason)
+        VALUES (?,?,?,?,?,?,?,?,?,'current',?)`)
+      .run(versionId, docId, version, file.object_key, file.file_name, file.size_bytes, file.checksum, file.uploaded_by ?? null, new Date().toISOString(), (file.change_reason ?? "").slice(0, 500));
+    // A replacement supersedes the previous current object: version history is
+    // the ledger, so nothing is destroyed — the old bytes stay until an
+    // explicit retention decision removes them.
+    const supersede = getDb().prepare(
+      "UPDATE file_versions SET status='superseded', superseded_at=? WHERE doc_id=? AND status='current' AND version_id <> ?",
+    ).run(new Date().toISOString(), docId, versionId);
+    return { version, version_id: versionId, superseded: Number(supersede.changes) || 0 };
+  });
+}
+
+export function listFileVersions(docId: string): FileVersion[] {
+  return all<FileVersion>("SELECT * FROM file_versions WHERE doc_id = ? ORDER BY version DESC", docId) as FileVersion[];
+}
+
+export function updateDocumentStatus(docId: string, status: DocumentItem["status"], actor = ""): DocumentItem | null {
   const current = one<DocumentItem>("SELECT * FROM documents WHERE doc_id = ?", docId);
   if (!current) return null;
   const received = status === "Received" || status === "Verified";
   getDb()
-    .prepare("UPDATE documents SET status=?, received_date=? WHERE doc_id=?")
-    .run(status, received ? iso(0) : current.received_date, docId);
+    .prepare("UPDATE documents SET status=?, received_date=?, next_reminder_on=NULL, verified_by=? WHERE doc_id=?")
+    .run(status, received ? iso(0) : current.received_date, status === "Verified" ? actor || "Verified" : current.verified_by ?? "", docId);
   logAudit({ action: "DOCUMENT_RECEIVED", entity_type: "document", entity_id: docId, detail: `${current.document_name} ${status.toLowerCase()} from ${current.client_name}` });
   return { ...current, status, received_date: received ? iso(0) : current.received_date };
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 function effectiveInvoiceStatus(row: Invoice): Invoice["status"] {
-  if (row.status === "Cancelled") return "Cancelled";
-  const paid = row.paid_amount ?? 0;
-  if (paid >= row.total_amount) return "Paid";
+  if (row.status === "Cancelled" || row.lifecycle === "cancelled") return "Cancelled";
+  const total = row.total_paise ?? Math.round(row.total_amount * 100);
+  const paid = row.paid_paise ?? Math.round(row.paid_amount * 100);
+  const credit = row.credit_paise ?? 0;
+  // Drafts are receivable potentials, not issued receivables: they are never
+  // overdue and can only show as Pending until finalisation.
+  if (row.lifecycle === "draft" || row.lifecycle === "pending_approval" || row.lifecycle === "approved") return "Pending";
+  if (total > 0 && paid + credit >= total) return "Paid";
   if (dayDiff(row.due_date) < 0) return "Overdue";
-  if (paid > 0) return "Partially Paid";
+  if (paid + credit > 0) return "Partially Paid";
   return "Pending";
 }
 
 function normaliseInvoice(row: Invoice): Invoice {
-  const invoice = { ...row, paid_amount: row.paid_amount ?? 0 };
-  return { ...invoice, status: effectiveInvoiceStatus(invoice) };
+  const paidPaise = row.paid_paise ?? Math.round((row.paid_amount ?? 0) * 100);
+  const paiseRow: Invoice = { ...row, paid_paise: paidPaise };
+  return { ...paiseRow, paid_amount: paiseToRupees(paidPaise), status: effectiveInvoiceStatus(paiseRow) };
+}
+
+function paiseToRupees(paise: number): number {
+  return Math.round(paise) / 100;
 }
 
 export function listInvoices(): Invoice[] {
@@ -1068,51 +2745,14 @@ export function getInvoice(invoiceId: string): Invoice | null {
   return row ? normaliseInvoice(row) : null;
 }
 
-function nextInvoiceId(): string {
-  const prefix = `INV-${new Date().getFullYear()}-`;
-  const row = one<{ max: number | null }>(
-    `SELECT MAX(CAST(SUBSTR(invoice_id, ${prefix.length + 1}) AS INTEGER)) AS max FROM invoices WHERE invoice_id LIKE ?`,
-    `${prefix}%`,
-  );
-  return `${prefix}${String((row?.max ?? 0) + 1).padStart(3, "0")}`;
-}
-
-export function createInvoice(input: Omit<Invoice, "invoice_id" | "paid_amount"> & { paid_amount?: number }): Invoice {
-  const invoice: Invoice = {
-    ...input,
-    invoice_id: nextInvoiceId(),
-    paid_amount: input.paid_amount ?? 0,
-  };
-  getDb()
-    .prepare(`INSERT INTO invoices (invoice_id,client_id,client_name,invoice_date,due_date,service_description,amount,gst_amount,total_amount,paid_amount,status,paid_date)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(invoice.invoice_id, invoice.client_id, invoice.client_name, invoice.invoice_date, invoice.due_date, invoice.service_description, invoice.amount, invoice.gst_amount, invoice.total_amount, invoice.paid_amount, invoice.status, invoice.paid_date);
-  logAudit({ action: "INVOICE_CREATED", entity_type: "invoice", entity_id: invoice.invoice_id, detail: `Invoice for ${invoice.client_name} — ₹${invoice.total_amount}` });
-  return invoice;
-}
-
-export function updateInvoiceStatus(invoiceId: string, status: "Pending" | "Paid" | "Cancelled"): Invoice | null {
-  const current = getInvoice(invoiceId);
-  if (!current) return null;
-  const db = getDb();
-  const paidAmount = status === "Paid" ? current.total_amount : current.paid_amount;
-  const paidDate = status === "Paid" ? iso(0) : current.paid_date;
-
-  if (status === "Paid") {
-    const balance = Math.round((current.total_amount - current.paid_amount) * 100) / 100;
-    if (balance > 0) {
-      // Keep the payment ledger complete when an invoice is settled manually.
-      db.prepare(`INSERT INTO payments (payment_id,invoice_id,client_name,amount,paid_on,mode,reference,notes,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?)`)
-        .run(nextPaymentId(invoiceId), invoiceId, current.client_name, balance, iso(0), "Other", "", "Marked paid from invoice", new Date().toISOString());
-    }
-  }
-
-  db.prepare("UPDATE invoices SET status=?, paid_amount=?, paid_date=? WHERE invoice_id=?")
-    .run(status, paidAmount, paidDate, invoiceId);
-  logAudit({ action: "INVOICE_UPDATED", entity_type: "invoice", entity_id: invoiceId, detail: `${invoiceId} for ${current.client_name} → ${status}` });
-  return normaliseInvoice({ ...current, status, paid_amount: paidAmount, paid_date: paidDate });
-}
+/**
+ * Legacy single-shot invoice creation is gone: all invoices — manual or
+ * automatic — now go through the billing engine in lib/invoicing.ts, which
+ * owns numbering, approval, tax treatment, the payment ledger and the
+ * append-only invoice event history. The old path created a Pending invoice
+ * with a silently applied GST rate and allowed "Paid" to be set without any
+ * payment evidence; both behaviours were withdrawn for Prompt 10.
+ */
 
 export function listPayments(): Payment[] {
   return all<Payment>("SELECT * FROM payments ORDER BY paid_on DESC, created_at DESC");
@@ -1122,42 +2762,14 @@ export function listPaymentsForInvoice(invoiceId: string): Payment[] {
   return all<Payment>("SELECT * FROM payments WHERE invoice_id = ? ORDER BY paid_on DESC, created_at DESC", invoiceId);
 }
 
-export function recordPayment(
-  invoiceId: string,
-  input: { amount: number; paid_on: string; mode: Payment["mode"]; reference: string; notes: string },
-): Payment | null {
-  const invoice = getInvoice(invoiceId);
-  if (!invoice || invoice.status === "Cancelled") return null;
-  const payment: Payment = {
-    payment_id: nextPaymentId(invoiceId),
-    invoice_id: invoiceId,
-    client_name: invoice.client_name,
-    amount: input.amount,
-    paid_on: input.paid_on,
-    mode: input.mode,
-    reference: input.reference,
-    notes: input.notes,
-    created_at: new Date().toISOString(),
-  };
-  const db = getDb();
-  db.exec("BEGIN");
-  try {
-    db.prepare(`INSERT INTO payments (payment_id,invoice_id,client_name,amount,paid_on,mode,reference,notes,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(payment.payment_id, payment.invoice_id, payment.client_name, payment.amount, payment.paid_on, payment.mode, payment.reference, payment.notes, payment.created_at);
-    const paidAmount = Math.round((invoice.paid_amount + input.amount) * 100) / 100;
-    const fullyPaid = paidAmount >= invoice.total_amount;
-    const status = fullyPaid ? "Paid" : invoice.status === "Overdue" ? "Overdue" : "Partially Paid";
-    db.prepare("UPDATE invoices SET paid_amount=?, status=?, paid_date=? WHERE invoice_id=?")
-      .run(paidAmount, status, fullyPaid ? input.paid_on : invoice.paid_date, invoiceId);
-    db.exec("COMMIT");
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
-  logAudit({ action: "PAYMENT_RECEIVED", entity_type: "invoice", entity_id: invoiceId, detail: `₹${input.amount} received from ${invoice.client_name} (${input.mode})` });
-  return payment;
-}
+/**
+ * Payment recording lives in lib/invoicing.ts (`recordPaymentEntry`): the
+ * ledger-derived implementation adds duplicate guards, fresh-balance
+ * over-allocation checks inside the write transaction, reconciliation states
+ * and partner-only reversal entries. This stub remains for any historical
+ * caller; it delegates to the engine.
+ */
+export { recordPaymentEntry as recordPayment } from "./invoicing";
 
 // ── UDIN ──────────────────────────────────────────────────────────────────────
 export function listUdin(): Udin[] {
@@ -1269,7 +2881,6 @@ export function getDashboard(): DashboardData {
   const compliance = listCompliance();
   const documents = listDocuments();
   const invoices = listInvoices();
-  const leads = listLeads();
   const notices = listNotices();
   const timesheets = listTimesheets();
 
@@ -1304,9 +2915,6 @@ export function getDashboard(): DashboardData {
     });
   }
 
-  const pipelineOrder: Lead["status"][] = ["New", "Contacted", "Qualified", "Proposal Sent", "Won", "Lost"];
-  const pipeline = pipelineOrder.map((status) => ({ status, count: leads.filter((l) => l.status === status).length }));
-
   return {
     kpis: {
       activeClients: clients.length,
@@ -1317,8 +2925,6 @@ export function getDashboard(): DashboardData {
       totalBilled,
       totalCollected,
       collectionRate: totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 1000) / 10 : 0,
-      openLeads: leads.filter((l) => !["Won", "Lost"].includes(l.status)).length,
-      hotLeads: leads.filter((l) => l.category === "Hot" && !["Won", "Lost"].includes(l.status)).length,
       pendingTimesheets: timesheets.filter((t) => t.status === "Pending").length,
       activeNotices: notices.filter((n) => n.status !== "Closed").length,
     },
@@ -1329,7 +2935,6 @@ export function getDashboard(): DashboardData {
     recentActivity: all<AuditEntry>("SELECT * FROM audit_log ORDER BY id DESC LIMIT 8"),
     overdueInvoices: overdueInvoices.slice(0, 5),
     revenueByMonth: months,
-    pipeline,
   };
 }
 
@@ -1347,10 +2952,13 @@ export function getNavCounts() {
 
   return {
     documents: count("SELECT COUNT(*) AS n FROM documents WHERE status = 'Pending'"),
+    workflow: count("SELECT COUNT(*) AS n FROM compliance WHERE status <> 'Filed' AND COALESCE(stage,'documents') <> 'done' AND due_date <= ?", week),
     compliance: count("SELECT COUNT(*) AS n FROM compliance WHERE status <> 'Filed' AND due_date <= ?", week),
-    leads: count("SELECT COUNT(*) AS n FROM leads WHERE status NOT IN ('Won','Lost')"),
+    leads: 0, // the leads module was removed; key kept for the NavCounts shape
     invoices: count("SELECT COUNT(*) AS n FROM invoices WHERE status NOT IN ('Paid','Cancelled') AND due_date < ?", today),
     agent: 0,
+    // Prepared client communication waiting in the automation outbox.
+    automation: count("SELECT COUNT(*) AS n FROM messages WHERE status = 'Queued'"),
   };
 }
 
@@ -1471,9 +3079,26 @@ export function listMessages(): Message[] {
 export function createMessage(input: Omit<Message, "message_id" | "created_at">): Message {
   const message: Message = { ...input, message_id: nextId("MESSAGE", "messages", "message_id"), created_at: new Date().toISOString() };
   getDb()
-    .prepare(`INSERT INTO messages (message_id,channel,recipient_name,to_address,subject,body,related_type,related_id,status,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`)
-    .run(message.message_id, message.channel, message.recipient_name, message.to_address, message.subject, message.body, message.related_type, message.related_id, message.status, message.created_at);
+    .prepare(`INSERT INTO messages (message_id,channel,recipient_name,to_address,subject,body,related_type,related_id,status,created_at,
+      kind,reminder_number,sent_at,error,automation_key)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(
+      message.message_id,
+      message.channel,
+      message.recipient_name,
+      message.to_address,
+      message.subject,
+      message.body,
+      message.related_type,
+      message.related_id,
+      message.status,
+      message.created_at,
+      message.kind ?? "manual",
+      message.reminder_number ?? 0,
+      message.sent_at ?? null,
+      message.error ?? "",
+      message.automation_key ?? "",
+    );
   logAudit({ action: "MESSAGE_LOGGED", entity_type: message.related_type || "message", entity_id: message.related_id, detail: `${message.channel} reminder to ${message.recipient_name}` });
   return message;
 }

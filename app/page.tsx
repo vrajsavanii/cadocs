@@ -1,22 +1,30 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   ArrowUpRight,
   CalendarCheck2,
   CheckCircle2,
+  Circle,
   Clock3,
   FileWarning,
+  ListChecks,
   ReceiptIndianRupee,
   Sparkles,
   TrendingUp,
   Users,
+  Zap,
 } from "lucide-react";
-import { getDashboard, getSettings } from "@/lib/db";
+import { countQueuedMessages, getDashboard, getSettings, listAutomationRules } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { buildWorkflow } from "@/lib/workflow";
+import { getService, stageInfo } from "@/lib/services";
+import { automationBacklog } from "@/lib/automation";
 import { buildInsights, deterministicBrief } from "@/lib/insights";
 import { AiBriefLine } from "@/components/ai-widgets";
-import { Badge, Card, PageHeader, Progress, Stat, StatusPill } from "@/components/ui";
-import { FeeGauge, PipelineBars, RevenueChart } from "@/components/charts";
-import { compactInr, dayDiff, inr, prettyDate, relativeDeadline } from "@/lib/format";
+import { Badge, Card, PageHeader, Progress, Stat, StatusPill, cn } from "@/components/ui";
+import { FeeGauge, RevenueChart } from "@/components/charts";
+import { compactInr, dayDiff, firmHour, firmLongDate, inr, prettyDate, relativeDeadline, todayISO } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -30,23 +38,99 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await getSessionUser();
+  const workflow = buildWorkflow(user);
+  const myWork = workflow.myWork.slice(0, 5);
   const data = getDashboard();
   const settings = getSettings();
   const k = data.kpis;
-  const hour = new Date().getHours();
+  // Server components render in the host's timezone (UTC on Vercel); the firm
+  // works in IST, so the greeting and date are formatted there instead.
+  const hour = firmHour();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const dateLabel = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const dateLabel = firmLongDate();
   const outstanding = k.totalBilled - k.totalCollected;
   const insights = buildInsights();
   const briefText = deterministicBrief();
+
+  // ── The working day, in the order a firm actually works it ──────────────────
+  const backlog = automationBacklog();
+  const queuedOutbox = countQueuedMessages();
+  const activeRules = listAutomationRules().filter((rule) => rule.enabled).length;
+
+  const todaySteps = [
+    {
+      step: "Filings",
+      count: `${k.overdueCompliance} overdue`,
+      title: "Clear the statutory calendar",
+      body: `${k.complianceDueThisWeek} filing(s) due this week. Start at the top of the list — statutory delay is the only mistake clients don't forgive.`,
+      href: "/compliance",
+      cta: "Open the calendar",
+      tone: k.overdueCompliance > 0 ? "border-red-900/10 bg-[#FBEAE7]/50" : "border-black/5 bg-white",
+    },
+    {
+      step: "Paperwork",
+      count: `${k.pendingDocuments} waiting`,
+      title: "Unblock the document chase",
+      body: `${backlog.documents} request(s) have been open 5+ days. Send one chaser per client and the block clears itself.`,
+      href: "/documents",
+      cta: "Chase documents",
+      tone: "border-gold/20 bg-gold-soft/40",
+    },
+    {
+      step: "Money",
+      count: compactInr(k.overdueFees),
+      title: "Collect what is already earned",
+      body: `${data.overdueInvoices.length} invoice(s) past due. A firm reminder this week is worth more than a new filing.`,
+      href: "/invoices",
+      cta: "Recover fees",
+      tone: k.overdueFees > 0 ? "border-red-900/10 bg-[#FBEAE7]/50" : "border-green/15 bg-sage/50",
+    },
+    {
+      step: "Automation",
+      count: queuedOutbox > 0 ? `${queuedOutbox} prepared` : `${activeRules} rule${activeRules === 1 ? "" : "s"}`,
+      title: queuedOutbox > 0 ? "Send what automation prepared" : "Switch automation on",
+      body:
+        queuedOutbox > 0
+          ? "Chasers and reminders are drafted and waiting. Open the outbox, send them, mark them sent."
+          : activeRules > 0
+            ? "Your rules run on their own schedule. Check the last sweep and the run history."
+            : "Automate the chasing, dunning and monthly filings once — then it runs without you.",
+      href: "/automation",
+      cta: queuedOutbox > 0 ? "Open the outbox" : "Set up automation",
+      tone: "border-green/15 bg-sage/50",
+    },
+  ];
+
+  const setupSteps = [
+    {
+      done: Boolean(settings.firm_name && settings.firm_gstin),
+      label: "Add your firm profile",
+      hint: "Name, GSTIN and address — they print on every invoice.",
+      href: "/settings",
+    },
+    {
+      done: k.activeClients > 0,
+      label: "Bring in your first client",
+      hint: "PAN and GSTIN are encrypted the moment they are saved.",
+      href: "/clients",
+    },
+    {
+      done: activeRules > 0,
+      label: "Put automation to work",
+      hint: "One command in plain English — \u201cchase documents after 5 days\u201d.",
+      href: "/automation",
+    },
+  ];
+  const setupDone = setupSteps.filter((s) => s.done).length;
 
   return (
     <div className="space-y-4">
       <PageHeader
         eyebrow={dateLabel}
-        title={`${greeting}, Managing Partner`}
-        description={`${settings.firm_name ?? "Your firm"} has ${k.complianceDueThisWeek} filings due this week and ${inr(k.overdueFees)} stuck in overdue fees.`}
+        title={`${greeting}, ${user?.name ?? "there"}`}
+        description={`${settings.firm_name ?? "Your firm"} has ${k.complianceDueThisWeek} filings due this week, ${workflow.totals.docsPending} documents pending and ${inr(k.overdueFees)} stuck in overdue fees.`}
       >
         <Link
           href="/agent"
@@ -62,8 +146,120 @@ export default function DashboardPage() {
         </Link>
       </PageHeader>
 
+      {/* ── My desk: the role-specific queue, before the firm-wide picture ──── */}
+      <Card className="p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted">
+              <ListChecks className="h-3.5 w-3.5" /> My desk
+            </p>
+            <p className="mt-0.5 text-sm font-extrabold text-ink">
+              {myWork.length ? `${workflow.myWork.length} filing${workflow.myWork.length === 1 ? "" : "s"} waiting on you` : "Your queue is clear"}
+            </p>
+            <p className="text-[11px] text-muted">
+              {user?.role === "partner" ? "Sign-offs and final audits land here." : user?.role === "manager" ? "Returns to review and portal filings land here." : "Documents and preparation work assigned to you."}
+            </p>
+          </div>
+          <Link href="/workflow" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-ink transition hover:bg-subtle">
+            Open workflow <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        {myWork.length === 0 ? (
+          <p className="rounded-2xl bg-subtle px-3 py-3 text-[11px] text-muted">Nothing is assigned to you right now. New work appears the moment a stage is handed over.</p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {myWork.map((task) => (
+              <Link
+                key={task.compliance_id}
+                href="/workflow"
+                className="rounded-2xl border border-black/5 bg-white p-3 transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-18px_rgba(25,32,28,0.45)]"
+              >
+                <div className="flex items-start justify-between gap-1.5">
+                  <p className="min-w-0 truncate text-[11px] font-bold text-ink">{task.client_name}</p>
+                  <Badge tone={task.stage === "signoff" ? "amber" : task.stage === "documents" ? "red" : "blue"}>{stageInfo(task.stage).short}</Badge>
+                </div>
+                <p className="mt-0.5 truncate text-[10px] text-muted">{getService(task.service_code).short} · {task.period}</p>
+                <p className={`mt-1.5 text-[10px] font-semibold ${task.due_date < todayISO() ? "text-[#A33B2E]" : "text-muted"}`}>{relativeDeadline(task.due_date)}</p>
+                <p className="mt-0.5 text-[9px] text-muted">{task.docs_pending ? `${task.docs_pending} document(s) pending` : "Documents clear"}</p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* ── First run: setup, hidden the moment it is complete ──────────────── */}
+      {setupDone < setupSteps.length ? (
+        <Card className="border-gold/25 bg-gold-soft/30 p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-extrabold tracking-tight text-ink">Get set up in 3 steps</h2>
+              <p className="text-[11px] text-muted">This card disappears once all three are done.</p>
+            </div>
+            <Badge tone="amber">
+              {setupDone}/{setupSteps.length} done
+            </Badge>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {setupSteps.map((step) => (
+              <Link
+                key={step.label}
+                href={step.href}
+                className="flex items-start gap-2.5 rounded-2xl bg-white/70 p-3 transition hover:bg-white"
+              >
+                {step.done ? (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#3E8A52]" />
+                ) : (
+                  <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                )}
+                <span className="min-w-0">
+                  <span className={cn("block text-xs font-bold", step.done ? "text-muted line-through" : "text-ink")}>{step.label}</span>
+                  <span className="block text-[11px] leading-relaxed text-muted">{step.hint}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {/* ── Today: the four moves that clear a working day ───────────────────── */}
+      <section aria-label="Today's workflow">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1">
+          <h2 className="text-sm font-extrabold tracking-tight text-ink">Your day, in four moves</h2>
+          <div className="flex items-center gap-3">
+            <p className="text-[11px] text-muted">Work top to bottom — each move clears the next.</p>
+            <Link href="/help" className="text-[11px] font-bold text-green hover:underline">
+              How to use this →
+            </Link>
+          </div>
+        </div>
+        <div data-today-moves className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {todaySteps.map((card, index) => (
+            <Link
+              key={card.title}
+              href={card.href}
+              className={cn(
+                "group flex h-full flex-col rounded-3xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-28px_rgba(25,32,28,0.55)]",
+                card.tone,
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/80 text-[11px] font-extrabold text-ink">
+                  {index + 1}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">{card.step}</span>
+                <ArrowRight className="ml-auto h-3.5 w-3.5 text-muted transition group-hover:translate-x-0.5 group-hover:text-ink" />
+              </div>
+              <p className="mt-2.5 text-xl font-extrabold leading-none tracking-tight text-ink">{card.count}</p>
+              <p className="mt-1.5 text-xs font-extrabold text-ink">{card.title}</p>
+              <p className="mt-1 flex-1 text-[11px] leading-relaxed text-muted">{card.body}</p>
+              <span className="mt-3 text-[11px] font-bold text-green">{card.cta} →</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Active clients" value={k.activeClients} hint={`${k.openLeads} open leads in pipeline`} icon={<Users className="h-4 w-4" />} />
+        <Stat label="Active clients" value={k.activeClients} hint={`${k.pendingDocuments} client documents pending`} icon={<Users className="h-4 w-4" />} />
         <Stat
           label="Due this week"
           value={k.complianceDueThisWeek}
@@ -148,7 +344,7 @@ export default function DashboardPage() {
               </li>
               <li className="flex gap-2">
                 <FileWarning className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#F3C77A]" />
-                {k.pendingDocuments} client documents pending; {k.hotLeads} hot leads waiting on a proposal.
+                {k.pendingDocuments} client documents pending.
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#F3C77A]" />
@@ -239,16 +435,6 @@ export default function DashboardPage() {
           </div>
           <RevenueChart data={data.revenueByMonth} />
         </Card>
-        <Card className="p-5">
-          <div className="mb-4">
-            <h2 className="text-sm font-extrabold tracking-tight text-ink">Lead pipeline</h2>
-            <p className="text-[11px] text-muted">{k.openLeads} open opportunities</p>
-          </div>
-          <PipelineBars data={data.pipeline} />
-          <Link href="/leads" className="mt-4 inline-flex items-center gap-1 text-[11px] font-bold text-green hover:underline">
-            Work the pipeline <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        </Card>
       </div>
 
       <Card className="p-5">
@@ -328,7 +514,7 @@ export default function DashboardPage() {
       </Card>
 
       <p className="pb-2 text-center text-[10px] text-muted">
-        {settings.firm_name} · {settings.firm_tagline} · Last refreshed {prettyDate(new Date().toISOString())}
+        {settings.firm_name} · {settings.firm_tagline} · Last refreshed {prettyDate(todayISO())}
       </p>
     </div>
   );
