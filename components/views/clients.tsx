@@ -560,10 +560,47 @@ function Money({ label, value, tone = "sage" }: { label: string; value: string; 
 }
 
 function Detail({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
+  // PAN / GSTIN / TAN / CIN get typed into tax portals all day. Make the
+  // identifier itself the copy affordance: click to copy, with honest
+  // feedback, instead of making staff drag-select a 10-character string.
+  const copyable = mono && value && value !== "—" && value !== "Not captured";
   return (
     <div className="rounded-2xl border border-black/5 p-3">
       <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted">{icon}{label}</p>
-      <p className={`mt-1 text-xs font-semibold text-ink ${mono ? "font-mono" : ""}`}>{value}</p>
+      <CopyableValue value={value} copyable={Boolean(copyable)} />
     </div>
+  );
+}
+
+function CopyableValue({ value, copyable }: { value: string; copyable: boolean }) {
+  const [copied, setCopied] = React.useState(false);
+  React.useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  if (!copyable) {
+    return <p className="mt-1 text-xs font-semibold text-ink">{value}</p>;
+  }
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      title={`Click to copy ${value}`}
+      className="mt-1 flex w-full items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-left transition hover:bg-subtle"
+    >
+      <span className="font-mono text-xs font-semibold text-ink">{value}</span>
+      <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide ${copied ? "text-green" : "text-muted"}`}>
+        {copied ? "Copied" : "Copy"}
+      </span>
+    </button>
   );
 }

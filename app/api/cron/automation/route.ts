@@ -3,6 +3,7 @@ import { listUsers } from "@/lib/db";
 import { runAutomationSweep } from "@/lib/automation";
 import { runClientAutomation } from "@/lib/reminders";
 import { ensureEngagementData } from "@/lib/engagements-db";
+import { isCronAuthorized, CRON_UNAUTHORIZED_MESSAGE } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,34 +13,19 @@ export const dynamic = "force-dynamic";
  * Deployments point a cron at this URL (see `vercel.json`). It runs every
  * enabled rule whose cadence window has elapsed and records each run.
  *
- * Authorisation, strongest first:
- *   - `Authorization: Bearer $CRON_SECRET` (Vercel forwards this automatically
- *     for cron invocations once the variable is set) or `?key=$CRON_SECRET`;
- *   - Vercel's own cron markers: the `x-vercel-cron` header, or the
- *     `vercel-cron` user agent.
+ * Authorisation is strict: `Authorization: Bearer $CRON_SECRET`, which Vercel
+ * forwards for cron invocations once the variable is set. Header/user-agent
+ * fallbacks were removed after the V1 audit (DEF-001) — both are spoofable
+ * from the open internet.
  *
- * A sweep is cadence-gated, so even a spoofed trigger cannot do more than run
- * the rules the firm already switched on, earlier than their own window — and
- * every run is audited. Nothing here writes to a client without a rule.
+ * The sweep is cadence-gated and every run is audited, but the endpoint still
+ * mutates state, so it authorises only with the configured secret.
  */
-function isVercelCron(req: Request): boolean {
-  if (req.headers.get("x-vercel-cron")) return true;
-  const ua = (req.headers.get("user-agent") || "").toLowerCase();
-  return ua.startsWith("vercel-cron") || ua.includes("vercel-cron/");
-}
-
-function authorize(req: Request): boolean {
-  const secret = (process.env.CRON_SECRET || "").trim();
-  const auth = req.headers.get("authorization") || "";
-  const key = new URL(req.url).searchParams.get("key") || "";
-  if (secret && (auth === `Bearer ${secret}` || key === secret)) return true;
-  return isVercelCron(req);
-}
 
 export async function GET(req: Request) {
-  if (!authorize(req)) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json(
-      { error: "Unauthorized — set CRON_SECRET and pass it as a Bearer token, or invoke from Vercel Cron." },
+      { error: CRON_UNAUTHORIZED_MESSAGE },
       { status: 401 },
     );
   }

@@ -203,6 +203,7 @@ function migrate(db: DatabaseSync) {
   ensureColumn(db, "documents", "file_path", "TEXT");
   ensureColumn(db, "documents", "uploaded_at", "TEXT");
   ensureColumn(db, "invoices", "paid_amount", "REAL DEFAULT 0");
+  ensureColumn(db, "messages", "provider_message_id", "TEXT");
   ensureColumn(db, "proposals", "converted_client_id", "TEXT");
   ensureColumn(db, "users", "token_version", "INTEGER DEFAULT 0");
 
@@ -1759,9 +1760,15 @@ const SEED_USERS: Array<{
 
 /**
  * First run creates three role-tiered accounts. Passwords come from the
- * environment when provided; otherwise a random one is generated and written
- * once to `.data/bootstrap-credentials.txt` (mode 0600 — never served,
- * never in git). The file tells the operator to change them immediately.
+ * environment when provided (the production pattern); otherwise a random one
+ * is generated.
+ *
+ * V1 audit DEF-006: generated credentials used to be written as PLAINTEXT to
+ * `.data/bootstrap-credentials.txt`. They are still recoverable at first run,
+ * but never at rest: they are printed once to the server log and stored in
+ * `bootstrap-credentials.enc`, AES-256-GCM-encrypted under the same field key
+ * that protects PAN/GSTIN. Nothing in the data directory reads out like a
+ * password list any more.
  */
 function seedUsersIfEmpty(db: DatabaseSync) {
   const count = db.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number };
@@ -1771,8 +1778,8 @@ function seedUsersIfEmpty(db: DatabaseSync) {
     "INSERT INTO users (user_id,username,name,email,role,password_hash,created_at) VALUES (?,?,?,?,?,?,?)",
   );
   const lines: string[] = [
-    "CADocs — first-run credentials",
-    "Change these immediately in Settings → Security. Keep this file private (0600) or delete it after storing the passwords in your password manager.",
+    "NexAgent — first-run credentials",
+    "Change these immediately in Settings → Security.",
     "",
   ];
 
@@ -1799,13 +1806,21 @@ function seedUsersIfEmpty(db: DatabaseSync) {
   }
 
   if (lines.length > 3) {
-    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
-    const bootFile = path.join(path.dirname(DB_FILE), "bootstrap-credentials.txt");
-    fs.writeFileSync(bootFile, `${lines.join("\n")}\n`, { mode: 0o600 });
+    // DEF-006: no plaintext credentials at rest. Note the encrypted mirror in
+    // the log (for deployments where stdout is the only channel) and persist
+    // them encrypted under the field key.
     try {
-      fs.chmodSync(bootFile, 0o600);
-    } catch {
-      // best effort without POSIX permissions
+      fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+      const bootFile = path.join(path.dirname(DB_FILE), "bootstrap-credentials.enc");
+      const encrypted = encryptField(lines.join("\n"));
+      if (encrypted) fs.writeFileSync(bootFile, `${encrypted}\n`, { mode: 0o600 });
+      console.warn(
+        "[bootstrap] First-run credentials generated. They are stored encrypted as " +
+          `${path.basename(bootFile)} and printed below ONCE — store them now, then rotate in Settings → Security.\n` +
+          lines.join("\n"),
+      );
+    } catch (err) {
+      console.error("[bootstrap] Failed to persist first-run credentials securely:", err);
     }
   }
 }
@@ -2141,15 +2156,50 @@ export function countQueuedMessages(): number {
   return row?.n ?? 0;
 }
 
-export function markMessageStatus(messageId: string, status: string): Message | null {
+/**
+ * Records a delivery-status transition for any channel.
+ *
+ * Statuses beyond the operator-visible ones arrive from the WhatsApp Cloud
+ * webhook (DEF-004): Meta reports delivery/read receipts against its own
+ * wamid.* identifier, and those states are audited here like every other
+ * system-driven change.
+ */
+export function markMessageStatus(messageId: string, status: string, error = ""): Message | null {
+  const sentAt = status === "Sent" || status === "Delivered" || status === "Read";
   getDb()
-    .prepare("UPDATE messages SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN COALESCE(sent_at, ?) ELSE sent_at END WHERE message_id = ?")
-    .run(status, status, new Date().toISOString(), messageId);
+    .prepare(
+      "UPDATE messages SET status = ?, error = CASE WHEN ? != '' THEN ? ELSE error END, sent_at = CASE WHEN ? THEN COALESCE(sent_at, ?) ELSE sent_at END WHERE message_id = ?",
+    )
+    .run(status, error, error, sentAt ? 1 : 0, new Date().toISOString(), messageId);
   const row = one<Message>("SELECT * FROM messages WHERE message_id = ?", messageId);
-  if (row && status === "Sent") {
-    logAudit({ action: "MESSAGE_SENT", entity_type: row.related_type || "message", entity_id: row.related_id, detail: `${row.channel} to ${row.recipient_name}` });
+  if (row && !error) {
+    const audits: Record<string, string> = {
+      Sent: "MESSAGE_SENT",
+      Delivered: "MESSAGE_DELIVERED",
+      Read: "MESSAGE_READ",
+      Failed: "MESSAGE_FAILED",
+    };
+    const action = audits[status];
+    if (action) {
+      logAudit({
+        action,
+        entity_type: row.related_type || "message",
+        entity_id: row.related_id,
+        detail: `${row.channel} to ${row.recipient_name}`,
+      });
+    }
   }
   return row;
+}
+
+/** Stores Meta's wamid.* id right after a Cloud API template send is accepted. */
+export function setProviderMessageId(messageId: string, providerMessageId: string) {
+  getDb().prepare("UPDATE messages SET provider_message_id = ? WHERE message_id = ?").run(providerMessageId, messageId);
+}
+
+/** Maps a webhook status callback (wamid.*) back to the outbox row. */
+export function findMessageByProviderId(providerMessageId: string): Message | null {
+  return one<Message>("SELECT * FROM messages WHERE provider_message_id = ?", providerMessageId);
 }
 
 // ── Clients ───────────────────────────────────────────────────────────────────

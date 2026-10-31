@@ -14,7 +14,7 @@
  *   • a template send is accepted by the API, not proof of delivery (webhooks
  *     are a separate integration).
  */
-import { createMessage, getDb, getSettings, markMessageStatus } from "./db";
+import { createMessage, getDb, getSettings, markMessageStatus, setProviderMessageId } from "./db";
 import type { Message } from "./types";
 
 export type WhatsAppConfig = {
@@ -107,15 +107,24 @@ export async function deliverWhatsApp(input: DeliverInput): Promise<Message> {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     });
-    const data = (await res.json().catch(() => ({}))) as { error?: { message?: string; code?: number } };
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: { message?: string; code?: number };
+      messages?: Array<{ id?: string }>;
+    };
     if (!res.ok) {
       const error = (data.error?.message || `WhatsApp API returned ${res.status}`).slice(0, 300);
       getDb().prepare("UPDATE messages SET status='Failed', error=? WHERE message_id=?").run(error, message.message_id);
       return { ...message, status: "Failed", error };
     }
+    // DEF-004: an accepted send is only a *submission* proof. Meta answers
+    // with its own message id — remember it so the status webhook can map
+    // delivery/read receipts back to the outbox row.
+    const providerId = (data.messages?.[0]?.id || "").trim();
+    if (providerId) setProviderMessageId(message.message_id, providerId);
     const sent = markMessageStatus(message.message_id, "Sent");
     getDb().prepare("UPDATE messages SET sent_at=? WHERE message_id=?").run(new Date().toISOString(), message.message_id);
-    return sent ? { ...sent, sent_at: new Date().toISOString() } : { ...message, status: "Sent" };
+    const base = (sent ?? { ...message, status: "Sent" }) as Message;
+    return { ...base, provider_message_id: providerId || null, sent_at: base.sent_at || new Date().toISOString() };
   } catch (err) {
     const error = (err instanceof Error ? err.message : "WhatsApp send failed").slice(0, 300);
     getDb().prepare("UPDATE messages SET status='Failed', error=? WHERE message_id=?").run(error, message.message_id);

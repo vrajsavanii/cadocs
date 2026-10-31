@@ -369,11 +369,12 @@ export type Message = {
   related_id: string;
   status: string;
   created_at: string;
-  kind?: "document_request" | "document_reminder" | "invoice" | "annual_reminder" | "welcome" | "manual";
-  reminder_number?: number;
+  kind?: "document_request" | "document_reminder" | "invoice" | "annual_reminder" | "welcome" | "manual";  reminder_number?: number;
   sent_at?: string | null;
   error?: string;
   automation_key?: string;
+  /** Meta's wamid.* identifier, when a Cloud API template send succeeded. */
+  provider_message_id?: string | null;
 };
 
 export type Udin = {

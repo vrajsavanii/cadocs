@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
-import { getSettings } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Availability probe for uptime monitors and load balancers.
+ *
+ * V1 audit DEF-003: this endpoint is public (the edge proxy deliberately lets
+ * it through), so it used to leak the firm name, the internal version, the
+ * stack composition and process uptime — fingerprints that make targeted
+ * attacks trivial. A liveness probe needs exactly one fact: the process is up
+ * and can reach its configuration. Detailed diagnostics belong in server logs,
+ * not a public response body.
+ */
 export function GET() {
-  const settings = getSettings();
   return NextResponse.json({
     status: "ok",
-    message: "CA Firm Automation API is running",
-    firm: settings.firm_name ?? "Sharma & Associates",
-    version: "3.0.0",
-    stack: "Next.js 16 · React 19 · SQLite",
-    uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });
 }

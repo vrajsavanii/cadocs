@@ -29,6 +29,9 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 export function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname === "/privacy") return true;
   if (pathname === "/api/auth/login" || pathname === "/api/health") return true;
+  // Meta's webhooks carry no browser session; the handler verifies the request
+  // itself (HMAC-SHA256 with X-Hub-Signature-256 / the subscription token).
+  if (pathname === "/api/webhooks/whatsapp") return true;
   // Public product site and its lead capture (rate limited inside the route).
   if (pathname === "/site" || pathname.startsWith("/site/")) return true;
   if (pathname === "/api/public/demo-request") return true;
